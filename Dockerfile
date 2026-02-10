@@ -13,8 +13,10 @@ FROM python:3.11-alpine
 # Instalar dependencias del sistema
 RUN apk add --no-cache nginx curl openssl bash
 
-# Crear directorios necesarios
-RUN mkdir -p /var/www/html /run/nginx /var/log/nginx
+# Crear directorios necesarios y usuario nginx
+RUN mkdir -p /var/www/html /run/nginx /var/log/nginx /var/cache/nginx /var/lib/nginx && \
+    adduser -D -S -h /var/cache/nginx -s /sbin/nologin nginx 2>/dev/null || true && \
+    chown -R nginx:nginx /var/www/html /var/log/nginx /run/nginx /var/cache/nginx /var/lib/nginx
 
 WORKDIR /app
 
@@ -34,9 +36,6 @@ COPY nginx/nginx.conf /etc/nginx/nginx.conf
 # Copiar entrypoint
 COPY scripts/entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
-
-# Crear usuario nginx si no existe
-RUN adduser -D -S -h /var/cache/nginx -s /sbin/nologin nginx 2>/dev/null || true
 
 # Environment
 ENV PYTHONUNBUFFERED=1
