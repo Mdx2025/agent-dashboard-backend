@@ -455,7 +455,7 @@ export default function MDXDashboard() {
       
       <header style={{ padding: "16px 24px", borderBottom: "1px solid " + COLORS.border, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-          <div style={{ width: 32, height:  "linear-gradient(135deg, "32, background: + COLORS.accent + ", " + COLORS.cyan + ")", borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16 }}>◈</div>
+          <div style={{ width: 32, height: 32, background: "linear-gradient(135deg, " + COLORS.accent + ", " + COLORS.cyan + ")", borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16 }}>◈</div>
           <div>
             <h1 style={{ fontSize: 14, fontWeight: 700, margin: 0 }}>MDX Agent Operations</h1>
             <span style={{ fontSize: 10, color: COLORS.textMuted }}>Real-time monitoring dashboard</span>
