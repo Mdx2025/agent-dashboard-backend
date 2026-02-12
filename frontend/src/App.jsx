@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 
 // ─── Mock Data ───────────────────────────────────────────────────────────
 const MOCK_SUMMARY = {
@@ -17,11 +17,11 @@ const MOCK_SUMMARY = {
 };
 
 const MOCK_AGENTS = [
-  { id: "main-agent", name: "MainAgent", type: "MAIN", status: "active", model: "anthropic/claude-opus-4", lastRun: Date.now() - 120000, runs24h: 67, errors24h: 0 },
-  { id: "research-sub", name: "ResearchBot", type: "SUBAGENT", status: "active", model: "anthropic/claude-sonnet-4", lastRun: Date.now() - 300000, runs24h: 34, errors24h: 1 },
-  { id: "code-sub", name: "CodeWriter", type: "SUBAGENT", status: "idle", model: "google/gemini-2.5-pro", lastRun: Date.now() - 900000, runs24h: 22, errors24h: 0 },
-  { id: "data-sub", name: "DataAnalyst", type: "SUBAGENT", status: "active", model: "openai/gpt-4o", lastRun: Date.now() - 60000, runs24h: 18, errors24h: 1 },
-  { id: "monitor-sub", name: "HealthMonitor", type: "SUBAGENT", status: "idle", model: "anthropic/claude-haiku-4", lastRun: Date.now() - 1800000, runs24h: 4, errors24h: 0 },
+  { id: "main-agent", name: "MainAgent", type: "MAIN", status: "active", model: "anthropic/claude-opus-4", lastRun: Date.now() - 120000, runs24h: 67, errors24h: 0, maxTokens: 8192, temperature: 0.7, tools: ["file_read", "file_write", "web_search", "shell_exec"] },
+  { id: "research-sub", name: "ResearchBot", type: "SUBAGENT", status: "active", model: "anthropic/claude-sonnet-4", lastRun: Date.now() - 300000, runs24h: 34, errors24h: 1, maxTokens: 4096, temperature: 0.6, tools: ["web_search", "web_fetch", "memory_search"] },
+  { id: "code-sub", name: "CodeWriter", type: "SUBAGENT", status: "idle", model: "google/gemini-2.5-pro", lastRun: Date.now() - 900000, runs24h: 22, errors24h: 0, maxTokens: 4096, temperature: 0.5, tools: ["file_read", "file_write", "exec"] },
+  { id: "data-sub", name: "DataAnalyst", type: "SUBAGENT", status: "active", model: "openai/gpt-4o", lastRun: Date.now() - 60000, runs24h: 18, errors24h: 1, maxTokens: 8192, temperature: 0.7, tools: ["file_read", "exec", "memory_get"] },
+  { id: "monitor-sub", name: "HealthMonitor", type: "SUBAGENT", status: "idle", model: "anthropic/claude-haiku-4", lastRun: Date.now() - 1800000, runs24h: 4, errors24h: 0, maxTokens: 2048, temperature: 0.3, tools: ["cron", "gateway"] },
 ];
 
 const MOCK_SESSIONS = [
@@ -35,18 +35,18 @@ const MOCK_SESSIONS = [
 ];
 
 const MOCK_RUNS = [
-  { id: "run_001", source: "MAIN", label: "User query: deploy analysis", status: "running", started: Date.now() - 45000, duration: null, model: "claude-opus-4", contextPct: 67, tokensIn: 12400, tokensOut: 3200, finishReason: null },
-  { id: "run_002", source: "SUBAGENT", label: "Research: API rate limits", status: "running", started: Date.now() - 30000, duration: null, model: "claude-sonnet-4", contextPct: 42, tokensIn: 8900, tokensOut: 1800, finishReason: null },
-  { id: "run_003", source: "CRON", label: "Scheduled: health check", status: "finished", started: Date.now() - 120000, duration: 4200, model: "claude-haiku-4", contextPct: 12, tokensIn: 2100, tokensOut: 890, finishReason: "stop" },
-  { id: "run_004", source: "MAIN", label: "User query: refactor auth module", status: "finished", started: Date.now() - 300000, duration: 18400, model: "claude-opus-4", contextPct: 78, tokensIn: 34500, tokensOut: 12800, finishReason: "stop" },
-  { id: "run_005", source: "SUBAGENT", label: "Code generation: middleware", status: "finished", started: Date.now() - 420000, duration: 8900, model: "gemini-2.5-pro", contextPct: 55, tokensIn: 18200, tokensOut: 7600, finishReason: "stop" },
-  { id: "run_006", source: "MAIN", label: "User query: database optimization", status: "failed", started: Date.now() - 600000, duration: 2100, model: "claude-opus-4", contextPct: 89, tokensIn: 42000, tokensOut: 200, finishReason: "error" },
-  { id: "run_007", source: "SUBAGENT", label: "Data analysis: usage metrics", status: "finished", started: Date.now() - 720000, duration: 6700, model: "gpt-4o", contextPct: 34, tokensIn: 9800, tokensOut: 4500, finishReason: "stop" },
-  { id: "run_008", source: "CRON", label: "Scheduled: token audit", status: "finished", started: Date.now() - 900000, duration: 3200, model: "claude-haiku-4", contextPct: 8, tokensIn: 1200, tokensOut: 600, finishReason: "stop" },
-  { id: "run_009", source: "MAIN", label: "User query: implement caching layer", status: "finished", started: Date.now() - 1200000, duration: 22100, model: "claude-opus-4", contextPct: 82, tokensIn: 38900, tokensOut: 15200, finishReason: "stop" },
-  { id: "run_010", source: "SUBAGENT", label: "Research: Redis best practices", status: "queued", started: Date.now() - 10000, duration: null, model: "claude-sonnet-4", contextPct: 0, tokensIn: 0, tokensOut: 0, finishReason: null },
-  { id: "run_011", source: "MAIN", label: "User query: CI/CD pipeline setup", status: "finished", started: Date.now() - 1500000, duration: 15600, model: "claude-opus-4", contextPct: 71, tokensIn: 28700, tokensOut: 11400, finishReason: "stop" },
-  { id: "run_012", source: "CRON", label: "Scheduled: dependency scan", status: "finished", started: Date.now() - 1800000, duration: 5400, model: "claude-haiku-4", contextPct: 15, tokensIn: 3400, tokensOut: 1200, finishReason: "stop" },
+  { id: "run_001", source: "MAIN", label: "User query: deploy analysis", status: "running", started: Date.now() - 45000, duration: null, model: "claude-opus-4", contextPct: 67, tokensIn: 12400, tokensOut: 3200, finishReason: null, transcript: "Initializing claudopus-4...\n[User] Help me analyze the deployment.\n[Assistant] Analyzing deployment logs and metrics...", toolCalls: [{ name: "file_read", params: "/var/logs/deploy.log" }, { name: "web_fetch", params: "https://api.railway.com/status" }], errors: [] },
+  { id: "run_002", source: "SUBAGENT", label: "Research: API rate limits", status: "running", started: Date.now() - 30000, duration: null, model: "claude-sonnet-4", contextPct: 42, tokensIn: 8900, tokensOut: 1800, finishReason: null, transcript: "Researching API rate limiting patterns...", toolCalls: [{ name: "web_search", params: "rate limiting best practices" }], errors: [] },
+  { id: "run_003", source: "CRON", label: "Scheduled: health check", status: "finished", started: Date.now() - 120000, duration: 4200, model: "claude-haiku-4", contextPct: 12, tokensIn: 2100, tokensOut: 890, finishReason: "stop", transcript: "Running system health check...\nAll systems operational.", toolCalls: [{ name: "gateway", params: "status" }], errors: [] },
+  { id: "run_004", source: "MAIN", label: "User query: refactor auth module", status: "finished", started: Date.now() - 300000, duration: 18400, model: "claude-opus-4", contextPct: 78, tokensIn: 34500, tokensOut: 12800, finishReason: "stop", transcript: "Refactoring authentication module...", toolCalls: [{ name: "file_read", params: "/src/auth.ts" }, { name: "file_write", params: "/src/auth_new.ts" }], errors: [] },
+  { id: "run_005", source: "SUBAGENT", label: "Code generation: middleware", status: "finished", started: Date.now() - 420000, duration: 8900, model: "gemini-2.5-pro", contextPct: 55, tokensIn: 18200, tokensOut: 7600, finishReason: "stop", transcript: "Generating middleware code...", toolCalls: [{ name: "exec", params: "npm install express" }], errors: [] },
+  { id: "run_006", source: "MAIN", label: "User query: database optimization", status: "failed", started: Date.now() - 600000, duration: 2100, model: "claude-opus-4", contextPct: 89, tokensIn: 42000, tokensOut: 200, finishReason: "error", transcript: "Query optimization failed...", toolCalls: [], errors: ["Connection timeout: database.example.com:5432"] },
+  { id: "run_007", source: "SUBAGENT", label: "Data analysis: usage metrics", status: "finished", started: Date.now() - 720000, duration: 6700, model: "gpt-4o", contextPct: 34, tokensIn: 9800, tokensOut: 4500, finishReason: "stop", transcript: "Analyzing usage metrics...", toolCalls: [{ name: "file_read", params: "/metrics/usage.json" }], errors: [] },
+  { id: "run_008", source: "CRON", label: "Scheduled: token audit", status: "finished", started: Date.now() - 900000, duration: 3200, model: "claude-haiku-4", contextPct: 8, tokensIn: 1200, tokensOut: 600, finishReason: "stop", transcript: "Token usage audit complete.", toolCalls: [], errors: [] },
+  { id: "run_009", source: "MAIN", label: "User query: implement caching layer", status: "finished", started: Date.now() - 1200000, duration: 22100, model: "claude-opus-4", contextPct: 82, tokensIn: 38900, tokensOut: 15200, finishReason: "stop", transcript: "Implementing Redis caching layer...", toolCalls: [{ name: "file_write", params: "/src/cache.ts" }], errors: [] },
+  { id: "run_010", source: "SUBAGENT", label: "Research: Redis best practices", status: "queued", started: Date.now() - 10000, duration: null, model: "claude-sonnet-4", contextPct: 0, tokensIn: 0, tokensOut: 0, finishReason: null, transcript: "Queued for processing...", toolCalls: [], errors: [] },
+  { id: "run_011", source: "MAIN", label: "User query: CI/CD pipeline setup", status: "finished", started: Date.now() - 1500000, duration: 15600, model: "claude-opus-4", contextPct: 71, tokensIn: 28700, tokensOut: 11400, finishReason: "stop", transcript: "Setting up GitHub Actions workflow...", toolCalls: [{ name: "file_write", params: "/.github/workflows/ci.yml" }], errors: [] },
+  { id: "run_012", source: "CRON", label: "Scheduled: dependency scan", status: "finished", started: Date.now() - 1800000, duration: 5400, model: "claude-haiku-4", contextPct: 15, tokensIn: 3400, tokensOut: 1200, finishReason: "stop", transcript: "Scanning dependencies for vulnerabilities...", toolCalls: [], errors: [] },
 ];
 
 const MOCK_USAGE_BREAKDOWN = [
@@ -171,13 +171,27 @@ function ContextBar({ pct }) {
   );
 }
 
-// ─── Drawer ──────────────────────────────────────────────────────────────
+function Accordion({ title, children, defaultOpen = false }) {
+  const [isOpen, setIsOpen] = useState(defaultOpen);
+  return (
+    <details open={isOpen} style={{ borderRadius: 8, border: `1px solid ${COLORS.border}`, overflow: "hidden", marginBottom: 8 }}>
+      <summary onClick={(e) => { e.preventDefault(); setIsOpen(!isOpen); }} style={{ padding: "10px 12px", cursor: "pointer", fontSize: 12, fontWeight: 500, color: COLORS.textPrimary, background: "rgba(255,255,255,0.02)", listStyle: "none", display: "flex", alignItems: "center", gap: 6, }}>
+        <span style={{ fontSize: 10, color: COLORS.textMuted, transform: isOpen ? "rotate(90deg)" : "rotate(0)", transition: "transform 0.2s" }}>▶</span>
+        {title}
+      </summary>
+      <div style={{ padding: 12, fontSize: 11, color: COLORS.textMuted, background: "rgba(0,0,0,0.1)" }}>
+        {children}
+      </div>
+    </details>
+  );
+}
+
 function Drawer({ open, onClose, title, children }) {
   if (!open) return null;
   return (
     <>
-      <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", backdropFilter: "blur(4px)", zIndex: 999, animation: "fadeIn 150ms ease", }} />
-      <div style={{ position: "fixed", top: 0, right: 0, bottom: 0, width: 480, maxWidth: "90vw", background: "linear-gradient(180deg, #0d1326 0%, #0a0e1a 100%)", borderLeft: `1px solid ${COLORS.border}`, zIndex: 1000, boxShadow: "-8px 0 40px rgba(0,0,0,0.5)", animation: "slideIn 200ms ease", overflowY: "auto", }}>
+      <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", backdropFilter: "blur(4px)", zIndex: 999, animation: "fadeIn 150ms ease" }} />
+      <div style={{ position: "fixed", top: 0, right: 0, bottom: 0, width: 480, maxWidth: "90vw", background: "linear-gradient(180deg, #0d1326 0%, #0a0e1a 100%)", borderLeft: `1px solid ${COLORS.border}`, zIndex: 1000, boxShadow: "-8px 0 40px rgba(0,0,0,0.5)", animation: "slideIn 200ms ease", overflowY: "auto" }}>
         <div style={{ padding: "20px 24px", borderBottom: `1px solid ${COLORS.border}`, display: "flex", justifyContent: "space-between", alignItems: "center", position: "sticky", top: 0, background: "rgba(13,19,38,0.95)", backdropFilter: "blur(12px)", zIndex: 1 }}>
           <span style={{ fontSize: 15, fontWeight: 600, color: COLORS.textPrimary }}>{title}</span>
           <button onClick={onClose} style={{ background: "rgba(255,255,255,0.05)", border: `1px solid ${COLORS.border}`, borderRadius: 6, padding: "4px 10px", color: COLORS.textSecondary, cursor: "pointer", fontSize: 12 }}>✕</button>
@@ -188,11 +202,169 @@ function Drawer({ open, onClose, title, children }) {
   );
 }
 
+function SessionDrawer({ session, onClose }) {
+  if (!session) return null;
+  const sessionRuns = MOCK_RUNS.filter(r => r.source === "MAIN").slice(0, 4);
+  return (
+    <Drawer open={!!session} onClose={onClose} title={`Session: ${session.id}`}>
+      <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+          <GlassCard padding="12px">
+            <div style={{ fontSize: 10, color: COLORS.textMuted, marginBottom: 4 }}>STATUS</div>
+            <StatusPill status={session.status} />
+          </GlassCard>
+          <GlassCard padding="12px">
+            <div style={{ fontSize: 10, color: COLORS.textMuted, marginBottom: 4 }}>AGENT</div>
+            <div style={{ fontSize: 12, color: COLORS.textPrimary, fontWeight: 500 }}>{session.agent}</div>
+          </GlassCard>
+          <GlassCard padding="12px">
+            <div style={{ fontSize: 10, color: COLORS.textMuted, marginBottom: 4 }}>MODEL</div>
+            <div style={{ fontSize: 11, color: COLORS.cyan }}>{session.model}</div>
+          </GlassCard>
+          <GlassCard padding="12px">
+            <div style={{ fontSize: 10, color: COLORS.textMuted, marginBottom: 4 }}>TOKENS 24H</div>
+            <div style={{ fontSize: 14, color: COLORS.textPrimary, fontWeight: 600 }}>{fmt(session.tokens24h)}</div>
+          </GlassCard>
+        </div>
+        <GlassCard padding="12px">
+          <div style={{ fontSize: 10, color: COLORS.textMuted, marginBottom: 4 }}>TIMELINE</div>
+          <div style={{ fontSize: 11, color: COLORS.textSecondary }}>Started: {timeAgo(session.started)}</div>
+          <div style={{ fontSize: 11, color: COLORS.textSecondary }}>Last seen: {timeAgo(session.lastSeen)}</div>
+        </GlassCard>
+        <div>
+          <div style={{ fontSize: 11, fontWeight: 600, color: COLORS.textPrimary, marginBottom: 8 }}>Recent Runs</div>
+          {sessionRuns.map(r => (
+            <div key={r.id} style={{ padding: "8px 0", borderBottom: `1px solid ${COLORS.border}`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <div>
+                <div style={{ fontSize: 11, color: COLORS.textPrimary }}>{r.label}</div>
+                <div style={{ fontSize: 10, color: COLORS.textMuted }}>{timeAgo(r.started)} · {durFmt(r.duration)}</div>
+              </div>
+              <StatusPill status={r.status} />
+            </div>
+          ))}
+        </div>
+      </div>
+    </Drawer>
+  );
+}
+
+function RunDrawer({ run, onClose }) {
+  if (!run) return null;
+  return (
+    <Drawer open={!!run} onClose={onClose} title={`Run: ${run.id}`}>
+      <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
+          <GlassCard padding="10px">
+            <div style={{ fontSize: 9, color: COLORS.textMuted, marginBottom: 4, textTransform: "uppercase", letterSpacing: 0.5 }}>Status</div>
+            <StatusPill status={run.status} />
+          </GlassCard>
+          <GlassCard padding="10px">
+            <div style={{ fontSize: 9, color: COLORS.textMuted, marginBottom: 4, textTransform: "uppercase", letterSpacing: 0.5 }}>Source</div>
+            <SourceBadge source={run.source} />
+          </GlassCard>
+          <GlassCard padding="10px">
+            <div style={{ fontSize: 9, color: COLORS.textMuted, marginBottom: 4, textTransform: "uppercase", letterSpacing: 0.5 }}>Model</div>
+            <div style={{ fontSize: 11, color: COLORS.cyan }}>{run.model}</div>
+          </GlassCard>
+          <GlassCard padding="10px">
+            <div style={{ fontSize: 9, color: COLORS.textMuted, marginBottom: 4, textTransform: "uppercase", letterSpacing: 0.5 }}>Duration</div>
+            <div style={{ fontSize: 13, color: COLORS.textPrimary, fontWeight: 600 }}>{durFmt(run.duration)}</div>
+          </GlassCard>
+          <GlassCard padding="10px">
+            <div style={{ fontSize: 9, color: COLORS.textMuted, marginBottom: 4, textTransform: "uppercase", letterSpacing: 0.5 }}>Context</div>
+            {run.contextPct > 0 ? <ContextBar pct={run.contextPct} /> : <span style={{ fontSize: 11, color: COLORS.textMuted }}>—</span>}
+          </GlassCard>
+          <GlassCard padding="10px">
+            <div style={{ fontSize: 9, color: COLORS.textMuted, marginBottom: 4, textTransform: "uppercase", letterSpacing: 0.5 }}>Tokens</div>
+            <span style={{ fontSize: 11, color: COLORS.textSecondary }}>{fmt(run.tokensIn)} → {fmt(run.tokensOut)}</span>
+          </GlassCard>
+        </div>
+        {run.finishReason && (
+          <div style={{ fontSize: 11, color: COLORS.textMuted }}>
+            Finish reason: <span style={{ color: run.finishReason === "error" ? COLORS.error : COLORS.textSecondary }}>{run.finishReason}</span>
+          </div>
+        )}
+        <Accordion title="Transcript" defaultOpen>
+          <div style={{ fontFamily: "inherit", lineHeight: 1.6, whiteSpace: "pre-wrap" }}>{run.transcript}</div>
+        </Accordion>
+        <Accordion title="Tool Calls">
+          {run.toolCalls && run.toolCalls.length > 0 ? (
+            <div>
+              {run.toolCalls.map((tc, i) => (
+                <div key={i} style={{ padding: "6px 0", borderBottom: `1px solid ${COLORS.border}` }}>
+                  <span style={{ color: COLORS.accentBright }}>{tc.name}</span>
+                  <span style={{ color: COLORS.textMuted }}> → {JSON.stringify(tc.params)}</span>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div>No tool calls</div>
+          )}
+        </Accordion>
+        <Accordion title="Errors">
+          {run.errors && run.errors.length > 0 ? (
+            run.errors.map((err, i) => (
+              <div key={i} style={{ color: COLORS.error, padding: "4px 0" }}>{err}</div>
+            ))
+          ) : (
+            <div>No errors</div>
+          )}
+        </Accordion>
+        <Accordion title="Artifacts">
+          <div>No artifacts generated</div>
+        </Accordion>
+      </div>
+    </Drawer>
+  );
+}
+
+function AgentDrawer({ agent, onClose }) {
+  if (!agent) return null;
+  return (
+    <Drawer open={!!agent} onClose={onClose} title={`Agent: ${agent.name}`}>
+      <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+          <GlassCard padding="10px">
+            <div style={{ fontSize: 9, color: COLORS.textMuted, marginBottom: 4, textTransform: "uppercase", letterSpacing: 0.5 }}>Type</div>
+            <SourceBadge source={agent.type} />
+          </GlassCard>
+          <GlassCard padding="10px">
+            <div style={{ fontSize: 9, color: COLORS.textMuted, marginBottom: 4, textTransform: "uppercase", letterSpacing: 0.5 }}>Status</div>
+            <StatusPill status={agent.status} />
+          </GlassCard>
+          <GlassCard padding="10px">
+            <div style={{ fontSize: 9, color: COLORS.textMuted, marginBottom: 4, textTransform: "uppercase", letterSpacing: 0.5 }}>Model</div>
+            <div style={{ fontSize: 11, color: COLORS.cyan }}>{agent.model}</div>
+          </GlassCard>
+          <GlassCard padding="10px">
+            <div style={{ fontSize: 9, color: COLORS.textMuted, marginBottom: 4, textTransform: "uppercase", letterSpacing: 0.5 }}>Last Run</div>
+            <span style={{ fontSize: 11, color: COLORS.textSecondary }}>{timeAgo(agent.lastRun)}</span>
+          </GlassCard>
+          <GlassCard padding="10px">
+            <div style={{ fontSize: 9, color: COLORS.textMuted, marginBottom: 4, textTransform: "uppercase", letterSpacing: 0.5 }}>Runs 24h</div>
+            <div style={{ fontSize: 14, fontWeight: 600, color: COLORS.textPrimary }}>{agent.runs24h}</div>
+          </GlassCard>
+          <GlassCard padding="10px">
+            <div style={{ fontSize: 9, color: COLORS.textMuted, marginBottom: 4, textTransform: "uppercase", letterSpacing: 0.5 }}>Errors 24h</div>
+            <div style={{ fontSize: 14, fontWeight: 600, color: agent.errors24h > 0 ? COLORS.error : COLORS.success }}>{agent.errors24h}</div>
+          </GlassCard>
+        </div>
+        <GlassCard padding="12px">
+          <div style={{ fontSize: 11, fontWeight: 600, color: COLORS.textPrimary, marginBottom: 8 }}>Configuration</div>
+          <pre style={{ fontSize: 10, color: COLORS.textMuted, background: "rgba(0,0,0,0.2)", padding: 12, borderRadius: 8, border: `1px solid ${COLORS.border}`, overflow: "auto", lineHeight: 1.5 }}>
+            {JSON.stringify({ id: agent.id, name: agent.name, type: agent.type, model: agent.model, maxTokens: agent.maxTokens, temperature: agent.temperature, tools: agent.tools }, null, 2)}
+          </pre>
+        </GlassCard>
+      </div>
+    </Drawer>
+  );
+}
+
 // ─── Main Dashboard ──────────────────────────────────────────────────────
 export default function MDXDashboard() {
   const [currentTime, setCurrentTime] = useState(Date.now());
   const [autoRefresh, setAutoRefresh] = useState(true);
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [  sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [activeNav, setActiveNav] = useState("overview");
   const [sessionSearch, setSessionSearch] = useState("");
   const [selectedSession, setSelectedSession] = useState(null);
@@ -204,7 +376,7 @@ export default function MDXDashboard() {
     return () => clearInterval(t);
   }, []);
 
-  const filteredSessions = MOCK_SESSIONS.filter(s => s.id.toLowerCase().includes(sessionSearch.toLowerCase()) || s.agent.toLowerCase().includes(sessionSearch.toLowerCase()) );
+  const filteredSessions = MOCK_SESSIONS.filter(s => s.id.toLowerCase().includes(sessionSearch.toLowerCase()) || s.agent.toLowerCase().includes(sessionSearch.toLowerCase()));
 
   const navItems = [
     { key: "overview", label: "Overview", icon: "⊞" },
@@ -224,7 +396,7 @@ export default function MDXDashboard() {
   ];
 
   return (
-    <div style={{ fontFamily: "'JetBrains Mono', 'SF Mono', 'Fira Code', monospace", background: `radial-gradient(ellipse at 20% 0%, rgba(15,23,60,1) 0%, ${COLORS.bg} 60%)`, color: COLORS.textPrimary, minHeight: "100vh", display: "flex", flexDirection: "column", }}>
+    <div style={{ fontFamily: "'JetBrains Mono', 'SF Mono', 'Fira Code', monospace", background: `radial-gradient(ellipse at 20% 0%, rgba(15,23,60,1) 0%, ${COLORS.bg} 60%)`, color: COLORS.textPrimary, minHeight: "100vh", display: "flex", flexDirection: "column" }}>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&display=swap');
         * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -238,8 +410,8 @@ export default function MDXDashboard() {
         input::placeholder { color: rgba(148,163,184,0.5); }
       `}</style>
 
-      {/* ── Top Bar ─────────────────────────────────── */}
-      <header style={{ height: 48, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 20px", borderBottom: `1px solid ${COLORS.border}`, background: "rgba(10, 14, 26, 0.8)", backdropFilter: "blur(20px)", position: "sticky", top: 0, zIndex: 100, }}>
+      {/* Top Bar */}
+      <header style={{ height: 48, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 20px", borderBottom: `1px solid ${COLORS.border}`, background: "rgba(10, 14, 26, 0.8)", backdropFilter: "blur(20px)", position: "sticky", top: 0, zIndex: 100 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
           <span style={{ fontSize: 16, fontWeight: 700, color: COLORS.accent, letterSpacing: 2 }}>MDX</span>
           <span style={{ width: 1, height: 20, background: COLORS.border }} />
@@ -253,19 +425,19 @@ export default function MDXDashboard() {
           <span style={{ fontSize: 10, color: COLORS.textMuted, fontVariantNumeric: "tabular-nums" }}>
             {new Date(currentTime).toLocaleTimeString("en-US", { hour12: false })}
           </span>
-          <button style={{ background: "rgba(255,255,255,0.04)", border: `1px solid ${COLORS.border}`, borderRadius: 6, padding: "3px 8px", color: COLORS.textSecondary, cursor: "pointer", fontSize: 12, }}>↻</button>
-          <button onClick={() => setAutoRefresh(!autoRefresh)} style={{ background: autoRefresh ? "rgba(59,130,246,0.15)" : "rgba(255,255,255,0.04)", border: `1px solid ${autoRefresh ? "rgba(59,130,246,0.4)" : COLORS.border}`, borderRadius: 6, padding: "3px 10px", color: autoRefresh ? COLORS.accent : COLORS.textMuted, cursor: "pointer", fontSize: 10, fontWeight: 500, letterSpacing: 0.5, }} >
+          <button style={{ background: "rgba(255,255,255,0.04)", border: `1px solid ${COLORS.border}`, borderRadius: 6, padding: "3px 8px", color: COLORS.textSecondary, cursor: "pointer", fontSize: 12 }}>↻</button>
+          <button onClick={() => setAutoRefresh(!autoRefresh)} style={{ background: autoRefresh ? "rgba(59,130,246,0.15)" : "rgba(255,255,255,0.04)", border: `1px solid ${autoRefresh ? "rgba(59,130,246,0.4)" : COLORS.border}`, borderRadius: 6, padding: "3px 10px", color: autoRefresh ? COLORS.accent : COLORS.textMuted, cursor: "pointer", fontSize: 10, fontWeight: 500, letterSpacing: 0.5 }}>
             AUTO
           </button>
         </div>
       </header>
 
       <div style={{ display: "flex", flex: 1, overflow: "hidden" }}>
-        {/* ── Sidebar ───────────────────────────────── */}
-        <nav style={{ width: sidebarCollapsed ? 52 : 180, minWidth: sidebarCollapsed ? 52 : 180, borderRight: `1px solid ${COLORS.border}`, background: "rgba(10, 14, 26, 0.6)", padding: "12px 0", display: "flex", flexDirection: "column", transition: "all 200ms ease", overflow: "hidden", }}>
-          <button onClick={() => setSidebarCollapsed(!sidebarCollapsed)} style={{ background: "none", border: "none", color: COLORS.textMuted, cursor: "pointer", padding: "4px 16px", fontSize: 12, textAlign: "left", marginBottom: 8, }} >{sidebarCollapsed ? "→" : "←"}</button>
+        {/* Sidebar */}
+        <nav style={{ width: sidebarCollapsed ? 52 : 180, minWidth: sidebarCollapsed ? 52 : 180, borderRight: `1px solid ${COLORS.border}`, background: "rgba(10, 14, 26, 0.6)", padding: "12px 0", display: "flex", flexDirection: "column", transition: "all 200ms ease", overflow: "hidden" }}>
+          <button onClick={() => setSidebarCollapsed(!sidebarCollapsed)} style={{ background: "none", border: "none", color: COLORS.textMuted, cursor: "pointer", padding: "4px 16px", fontSize: 12, textAlign: "left", marginBottom: 8 }}>{sidebarCollapsed ? "→" : "←"}</button>
           {navItems.map(item => (
-            <button key={item.key} onClick={() => setActiveNav(item.key)} style={{ display: "flex", alignItems: "center", gap: 10, padding: sidebarCollapsed ? "10px 16px" : "10px 16px", background: activeNav === item.key ? "rgba(59,130,246,0.1)" : "transparent", border: "none", borderLeft: activeNav === item.key ? `2px solid ${COLORS.accent}` : "2px solid transparent", color: activeNav === item.key ? COLORS.accentBright : COLORS.textSecondary, cursor: "pointer", fontSize: 12, fontWeight: activeNav === item.key ? 600 : 400, transition: "all 150ms ease", width: "100%", textAlign: "left", fontFamily: "inherit", }}>
+            <button key={item.key} onClick={() => setActiveNav(item.key)} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 16px", background: activeNav === item.key ? "rgba(59,130,246,0.1)" : "transparent", border: "none", borderLeft: activeNav === item.key ? `2px solid ${COLORS.accent}` : "2px solid transparent", color: activeNav === item.key ? COLORS.accentBright : COLORS.textSecondary, cursor: "pointer", fontSize: 12, fontWeight: activeNav === item.key ? 600 : 400, transition: "all 150ms ease", width: "100%", textAlign: "left", fontFamily: "inherit" }}>
               <span style={{ fontSize: 14, width: 18, textAlign: "center", flexShrink: 0 }}>{item.icon}</span>
               {!sidebarCollapsed && <span>{item.label}</span>}
             </button>
@@ -279,7 +451,7 @@ export default function MDXDashboard() {
           </div>
         </nav>
 
-        {/* ── Main Content ──────────────────────────── */}
+        {/* Main Content */}
         <main style={{ flex: 1, overflow: "auto", padding: "20px 24px" }}>
           {/* Page Header */}
           <div style={{ marginBottom: 20, display: "flex", alignItems: "baseline", gap: 12 }}>
@@ -287,7 +459,7 @@ export default function MDXDashboard() {
             <span style={{ fontSize: 11, color: COLORS.textMuted }}>Real-time agent operations monitoring</span>
           </div>
 
-          {/* ── KPI Row ────────────────────────────── */}
+          {/* KPI Row - 5 cards */}
           <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 12, marginBottom: 20 }}>
             <KPICard label="Active Sessions" value={MOCK_SUMMARY.activeSessions} icon="◉" accent={COLORS.success} sub={`${MOCK_SESSIONS.filter(s => s.status === "active").length} connected`} />
             <KPICard label="Total Tokens" value={fmt(MOCK_SUMMARY.totalTokensAllTime)} icon="◇" accent={COLORS.accent} sub={`${fmt(MOCK_SUMMARY.totalTokens24h)} last 24h`} trend="+18% vs yesterday" />
@@ -302,12 +474,12 @@ export default function MDXDashboard() {
             </GlassCard>
           </div>
 
-          {/* ── Agents Quick Strip ─────────────────── */}
+          {/* Agents Strip - horizontal, clickable */}
           <div style={{ marginBottom: 20 }}>
             <div style={{ fontSize: 11, fontWeight: 500, color: COLORS.textMuted, textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 8 }}>Agents</div>
             <div style={{ display: "flex", gap: 8, overflowX: "auto", paddingBottom: 4 }}>
               {MOCK_AGENTS.map(a => (
-                <GlassCard key={a.id} hover onClick={() => setSelectedAgent(a)} style={{ minWidth: 180, flex: "0 0 auto" }} padding="10px 14px" >
+                <GlassCard key={a.id} hover onClick={() => setSelectedAgent(a)} style={{ minWidth: 180, flex: "0 0 auto" }} padding="10px 14px">
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
                     <span style={{ fontSize: 12, fontWeight: 600, color: COLORS.textPrimary }}>{a.name}</span>
                     <StatusPill status={a.status} />
@@ -315,7 +487,7 @@ export default function MDXDashboard() {
                   <div style={{ fontSize: 10, color: COLORS.textMuted, marginBottom: 2 }}>{a.model}</div>
                   <div style={{ display: "flex", gap: 12, fontSize: 10, color: COLORS.textMuted }}>
                     <span>{a.runs24h} runs</span>
-                    <span style={{ color: a.errors24h > 0 ? COLORS.error : COLORS.textMuted }}> {a.errors24h} errors </span>
+                    <span style={{ color: a.errors24h > 0 ? COLORS.error : COLORS.textMuted }}>{a.errors24h} errors</span>
                     <span>{timeAgo(a.lastRun)}</span>
                   </div>
                 </GlassCard>
@@ -323,13 +495,122 @@ export default function MDXDashboard() {
             </div>
           </div>
 
-          {/* ── Two Column Layout ──────────────────── */}
+          {/* Two Column Layout */}
           <div style={{ display: "grid", gridTemplateColumns: "340px 1fr", gap: 16, alignItems: "start" }}>
-            {/* LEFT: Active Sessions */}
+            {/* Left: Active Sessions with search */}
             <GlassCard padding="0">
               <div style={{ padding: "12px 14px", borderBottom: `1px solid ${COLORS.border}`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                 <span style={{ fontSize: 12, fontWeight: 600, color: COLORS.textPrimary }}>Active Sessions</span>
                 <span style={{ fontSize: 10, color: COLORS.textMuted, background: "rgba(59,130,246,0.1)", padding: "2px 6px", borderRadius: 4 }}>{filteredSessions.length}</span>
               </div>
               <div style={{ padding: "8px 14px 4px" }}>
-                <input type="text" placeholder="Search sessions..." value={sessionSearch} onChange={e => setSessionSearch(e.target.value
+                <input type="text" placeholder="Search sessions..." value={sessionSearch} onChange={e => setSessionSearch(e.target.value)} style={{ width: "100%", background: "rgba(255,255,255,0.03)", border: `1px solid ${COLORS.border}`, borderRadius: 6, padding: "6px 10px", color: COLORS.textPrimary, fontSize: 11, outline: "none", fontFamily: "inherit" }} />
+              </div>
+              <div style={{ maxHeight: 420, overflowY: "auto" }}>
+                {filteredSessions.map(s => (
+                  <div key={s.id} onClick={() => setSelectedSession(s)} style={{ padding: "10px 14px", borderBottom: `1px solid rgba(255,255,255,0.03)`, cursor: "pointer", transition: "background 150ms" }} onMouseEnter={e => e.currentTarget.style.background = "rgba(59,130,246,0.05)"} onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+                      <span style={{ fontSize: 11, fontWeight: 600, color: COLORS.accentBright, fontFamily: "inherit" }}>{s.id}</span>
+                      <StatusPill status={s.status} />
+                    </div>
+                    <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: COLORS.textMuted }}>
+                      <span>{s.agent} · {s.model}</span>
+                      <span>{fmt(s.tokens24h)} tok</span>
+                    </div>
+                    <div style={{ fontSize: 10, color: COLORS.textMuted, marginTop: 2 }}>Last seen {timeAgo(s.lastSeen)}</div>
+                  </div>
+                ))}
+              </div>
+            </GlassCard>
+
+            {/* Right: Recent Runs table */}
+            <GlassCard padding="0" style={{ overflow: "hidden" }}>
+              <div style={{ padding: "12px 14px", borderBottom: `1px solid ${COLORS.border}`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <span style={{ fontSize: 12, fontWeight: 600, color: COLORS.textPrimary }}>Recent Runs</span>
+                <div style={{ display: "flex", gap: 4 }}>
+                  {["ALL", "MAIN", "SUB", "CRON"].map(f => (
+                    <span key={f} style={{ fontSize: 9, padding: "2px 6px", borderRadius: 4, cursor: "pointer", background: f === "ALL" ? "rgba(59,130,246,0.15)" : "rgba(255,255,255,0.03)", color: f === "ALL" ? COLORS.accentBright : COLORS.textMuted, border: `1px solid ${f === "ALL" ? "rgba(59,130,246,0.3)" : "transparent"}`, fontWeight: 500, letterSpacing: 0.3 }}>{f}</span>
+                  ))}
+                </div>
+              </div>
+              <div style={{ overflowX: "auto" }}>
+                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 11 }}>
+                  <thead>
+                    <tr style={{ borderBottom: `1px solid ${COLORS.border}` }}>
+                      {["Source", "Label", "Status", "Started", "Duration", "Model", "Ctx%", "Tokens", ""].map(h => (
+                        <th key={h} style={{ padding: "8px 10px", textAlign: "left", fontWeight: 500, color: COLORS.textMuted, fontSize: 10, letterSpacing: 0.5, textTransform: "uppercase", whiteSpace: "nowrap", position: "sticky", top: 0, background: COLORS.bgCard }}>{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {MOCK_RUNS.map(r => (
+                      <tr key={r.id} onClick={() => setSelectedRun(r)} style={{ borderBottom: `1px solid rgba(255,255,255,0.02)`, cursor: "pointer", transition: "background 150ms" }} onMouseEnter={e => e.currentTarget.style.background = "rgba(59,130,246,0.04)"} onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
+                        <td style={{ padding: "8px 10px", whiteSpace: "nowrap" }}><SourceBadge source={r.source} /></td>
+                        <td style={{ padding: "8px 10px", color: COLORS.textPrimary, maxWidth: 200, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontWeight: 400 }}>{r.label}</td>
+                        <td style={{ padding: "8px 10px", whiteSpace: "nowrap" }}><StatusPill status={r.status} /></td>
+                        <td style={{ padding: "8px 10px", color: COLORS.textMuted, whiteSpace: "nowrap", fontVariantNumeric: "tabular-nums" }}>{timeAgo(r.started)}</td>
+                        <td style={{ padding: "8px 10px", color: COLORS.textMuted, whiteSpace: "nowrap", fontVariantNumeric: "tabular-nums" }}>{durFmt(r.duration)}</td>
+                        <td style={{ padding: "8px 10px", color: COLORS.textSecondary, whiteSpace: "nowrap", fontSize: 10 }}>{r.model}</td>
+                        <td style={{ padding: "8px 10px" }}>{r.contextPct > 0 ? <ContextBar pct={r.contextPct} /> : <span style={{ color: COLORS.textMuted }}>—</span>}</td>
+                        <td style={{ padding: "8px 10px", whiteSpace: "nowrap", fontVariantNumeric: "tabular-nums", color: COLORS.textMuted }}>
+                          <span style={{ color: COLORS.textSecondary }}>{fmt(r.tokensIn)}</span>
+                          <span style={{ margin: "0 3px", opacity: 0.3 }}>→</span>
+                          <span>{fmt(r.tokensOut)}</span>
+                        </td>
+                        <td style={{ padding: "8px 10px" }}>
+                          <span style={{ fontSize: 10, color: COLORS.accent, cursor: "pointer" }}>View</span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </GlassCard>
+          </div>
+
+          {/* Model Usage Breakdown - bottom strip */}
+          <div style={{ marginTop: 20 }}>
+            <div style={{ fontSize: 11, fontWeight: 500, color: COLORS.textMuted, textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 8 }}>Model Usage Breakdown · Last 24h</div>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 10 }}>
+              {MOCK_USAGE_BREAKDOWN.map(u => (
+                <GlassCard key={u.model} hover padding="12px 14px">
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+                    <span style={{ fontSize: 11, fontWeight: 600, color: COLORS.textPrimary }}>{u.model}</span>
+                    <span style={{ fontSize: 10, color: COLORS.textMuted }}>{u.pct}%</span>
+                  </div>
+                  <UsageBar pct={u.pct} />
+                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: COLORS.textMuted, marginTop: 8 }}>
+                    <span>{u.provider}</span>
+                    <span style={{ color: COLORS.success }}>${u.cost.toFixed(2)}</span>
+                  </div>
+                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: COLORS.textMuted, marginTop: 2 }}>
+                    <span>{u.requests} reqs</span>
+                    <span>{fmt(u.tokensIn + u.tokensOut)} tok</span>
+                  </div>
+                </GlassCard>
+              ))}
+            </div>
+          </div>
+
+          {/* Suggested Additional Tabs */}
+          <div style={{ marginTop: 24, padding: 16, borderRadius: 12, border: `1px dashed rgba(59,130,246,0.2)`, background: "rgba(59,130,246,0.03)" }}>
+            <div style={{ fontSize: 11, fontWeight: 600, color: COLORS.accent, marginBottom: 10, letterSpacing: 0.5 }}>✦ SUGGESTED ADDITIONAL TABS</div>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 8 }}>
+              {suggestedTabs.map(t => (
+                <div key={t.key} style={{ padding: "10px 12px", borderRadius: 8, background: "rgba(255,255,255,0.02)", border: `1px solid ${COLORS.border}` }}>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: COLORS.textPrimary, marginBottom: 4 }}>{t.icon} {t.label}</div>
+                  <div style={{ fontSize: 10, color: COLORS.textMuted, lineHeight: 1.4 }}>{t.desc}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </main>
+      </div>
+
+      {/* Drawers */}
+      <SessionDrawer session={selectedSession} onClose={() => setSelectedSession(null)} />
+      <RunDrawer run={selectedRun} onClose={() => setSelectedRun(null)} />
+      <AgentDrawer agent={selectedAgent} onClose={() => setSelectedAgent(null)} />
+    </div>
+  );
+}
