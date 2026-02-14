@@ -7,7 +7,7 @@ builder = "NIXPACKS"
 # Build the project, generate Prisma client, run migrations, and start the server
 startCommand = "npm run build && npm run prisma:generate && npx prisma migrate deploy && npm start"
 healthcheckPath = "/health"
-healthcheckTimeout = 100
+healthcheckTimeout = 30000
 
 [variables]
 # This will be automatically set by Railway when you add a PostgreSQL service
