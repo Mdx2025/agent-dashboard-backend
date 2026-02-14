@@ -1,4 +1,5 @@
 # Railway.toml configuration for the frontend dashboard
+# Updated: 2026-02-14 - Force rebuild after removing main.jsx
 
 [build]
 builder = "NIXPACKS"
