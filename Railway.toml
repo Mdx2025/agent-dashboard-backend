@@ -5,8 +5,8 @@
 builder = "NIXPACKS"
 
 [deploy]
-# Railway Railpack automatically handles build and start for Vite projects
-# No need to specify startCommand - Railpack detects it automatically
+# Use start script to properly handle $PORT expansion
+startCommand = "bash start.sh"
 healthcheckPath = "/"
 healthcheckTimeout = 100
 
