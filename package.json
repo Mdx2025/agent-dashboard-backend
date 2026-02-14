@@ -8,6 +8,8 @@
     "dev": "ts-node-dev --respawn --transpile-only --exit-child src/server.ts",
     "build": "tsc",
     "start": "node dist/server.js",
+    "start:prod": "npm run prisma:generate && npx prisma migrate deploy && npm start",
+    "start:prod:reset": "npm run prisma:generate && npx prisma migrate reset --force --skip-generate && npm start",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev"
   },
