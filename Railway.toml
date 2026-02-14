@@ -1,0 +1,14 @@
+# Railway.toml configuration for the backend API
+
+[build]
+builder = "NIXPACKS"
+
+[deploy]
+# Build the project, generate Prisma client, and start the server
+startCommand = "npm run build && npm run prisma:generate && npm start"
+healthcheckPath = "/health"
+healthcheckTimeout = 100
+
+[variables]
+# This will be automatically set by Railway when you add a PostgreSQL service
+DATABASE_URL = ""
