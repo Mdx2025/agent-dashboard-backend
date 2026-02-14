@@ -4,9 +4,15 @@
 [build]
 builder = "NIXPACKS"
 
+[phases.build]
+cmds = ["npm run build"]
+
+[phases.start]
+cmd = "npx serve -s dist -l $PORT"
+
 [deploy]
-# Build the project and then serve the static files using Express
-startCommand = "npm run build && node server.js"
+# Build the project and then serve the static files from the 'dist' directory
+startCommand = "npx serve -s dist -l $PORT"
 healthcheckPath = "/"
 healthcheckTimeout = 100
 
