@@ -4,8 +4,8 @@
 builder = "NIXPACKS"
 
 [deploy]
-# Build the project, generate Prisma client, and start the server
-startCommand = "npm run build && npm run prisma:generate && npm start"
+# Build the project, generate Prisma client, run migrations, and start the server
+startCommand = "npm run build && npm run prisma:generate && npx prisma migrate deploy && npm start"
 healthcheckPath = "/health"
 healthcheckTimeout = 100
 
