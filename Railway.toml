@@ -6,7 +6,7 @@ builder = "NIXPACKS"
 
 [deploy]
 # Build the project and serve the static files from the 'dist' directory
-startCommand = "npm run build && npx serve -s dist -l 3001"
+startCommand = "npm run build && npx serve -s dist -l 3000"
 healthcheckPath = "/"
 healthcheckTimeout = 100
 
