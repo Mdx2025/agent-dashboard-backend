@@ -1,40 +1,41 @@
-# Build stage
-FROM node:22-alpine AS builder
+FROM node:20-alpine
 
 WORKDIR /app
 
-# Copy package files
-COPY package*.json ./
-
 # Install dependencies
-RUN npm ci
+COPY package.json package-lock.json* ./
+RUN npm ci --only=production
 
 # Copy source code
 COPY . .
 
-# Build the application
+# Build the app
 RUN npm run build
 
-# Production stage
-FROM node:22-alpine AS production
+# Create server
+RUN cat > server.js << 'EOF'
+import express from 'express';
+import path from 'path';
+import { fileURLToPath } from 'url';
 
-WORKDIR /app
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const app = express();
+const PORT = process.env.PORT || 3000;
 
-# Install http-server as a more reliable static file server
-RUN npm install -g http-server
+app.use(express.static(path.join(__dirname, 'dist')));
 
-# Copy built files from builder
-COPY --from=builder /app/dist ./dist
+app.get('*', (req, res) => {
+  res.sendFile(path.join(__dirname, 'dist', 'index.html'));
+});
 
-# Create a simple startup script that handles PORT properly
-RUN echo '#!/bin/sh' > /start.sh && \
-    echo 'PORT=${PORT:-3000}' >> /start.sh && \
-    echo 'echo "Starting http-server on port $PORT"' >> /start.sh && \
-    echo 'http-server dist -p $PORT -a 0.0.0.0 --cors' >> /start.sh && \
-    chmod +x /start.sh
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`Server listening on http://0.0.0.0:${PORT}`);
+});
+EOF
 
-# Expose port (Railway will override)
+# Expose port
+ENV PORT=3000
 EXPOSE 3000
 
-# Start the server
-CMD ["/start.sh"]
+# Start server
+CMD ["node", "server.js"]
