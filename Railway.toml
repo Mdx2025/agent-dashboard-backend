@@ -5,7 +5,9 @@ builder = "NIXPACKS"
 
 [deploy]
 # Build the project, generate Prisma client, run migrations, and start the server
-startCommand = "npm run build && npm run prisma:generate && npx prisma migrate deploy && npm start"
+# Note: migrate reset will DROP and RECREATE all tables (data will be lost)
+# Change back to "npx prisma migrate deploy" after database is working
+startCommand = "npm run build && npm run prisma:generate && npx prisma migrate reset --force --skip-generate && npm start"
 healthcheckPath = "/health"
 healthcheckTimeout = 30000
 
