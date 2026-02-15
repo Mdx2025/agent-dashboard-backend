@@ -208,6 +208,78 @@ server.listen({ port: Number(PORT), host: '0.0.0.0' }, async (err, address) => {
   
   // Try to ensure tables exist and have correct columns using raw SQL
   try {
+    // Create enums first (IF NOT EXISTS doesn't work for enums, so use DO block)
+    await prisma.$executeRaw`
+      DO $$ BEGIN
+        CREATE TYPE "AgentType" AS ENUM ('MAIN', 'SUBAGENT');
+      EXCEPTION
+        WHEN duplicate_object THEN null;
+      END $$;
+    `;
+    await prisma.$executeRaw`
+      DO $$ BEGIN
+        CREATE TYPE "AgentStatus" AS ENUM ('active', 'idle', 'error', 'offline');
+      EXCEPTION
+        WHEN duplicate_object THEN null;
+      END $$;
+    `;
+    await prisma.$executeRaw`
+      DO $$ BEGIN
+        CREATE TYPE "SessionStatus" AS ENUM ('active', 'idle', 'closed');
+      EXCEPTION
+        WHEN duplicate_object THEN null;
+      END $$;
+    `;
+    await prisma.$executeRaw`
+      DO $$ BEGIN
+        CREATE TYPE "RunSource" AS ENUM ('MAIN', 'SUBAGENT', 'CRON');
+      EXCEPTION
+        WHEN duplicate_object THEN null;
+      END $$;
+    `;
+    await prisma.$executeRaw`
+      DO $$ BEGIN
+        CREATE TYPE "RunStatus" AS ENUM ('queued', 'running', 'finished', 'failed');
+      EXCEPTION
+        WHEN duplicate_object THEN null;
+      END $$;
+    `;
+    await prisma.$executeRaw`
+      DO $$ BEGIN
+        CREATE TYPE "FinishReason" AS ENUM ('stop', 'tool_calls', 'error', 'length');
+      EXCEPTION
+        WHEN duplicate_object THEN null;
+      END $$;
+    `;
+    await prisma.$executeRaw`
+      DO $$ BEGIN
+        CREATE TYPE "SkillStatus" AS ENUM ('ok', 'warn', 'error');
+      EXCEPTION
+        WHEN duplicate_object THEN null;
+      END $$;
+    `;
+    await prisma.$executeRaw`
+      DO $$ BEGIN
+        CREATE TYPE "HealthStatus" AS ENUM ('pass', 'warn', 'fail');
+      EXCEPTION
+        WHEN duplicate_object THEN null;
+      END $$;
+    `;
+    await prisma.$executeRaw`
+      DO $$ BEGIN
+        CREATE TYPE "ServiceStatus" AS ENUM ('healthy', 'degraded', 'offline');
+      EXCEPTION
+        WHEN duplicate_object THEN null;
+      END $$;
+    `;
+    await prisma.$executeRaw`
+      DO $$ BEGIN
+        CREATE TYPE "LogLevel" AS ENUM ('DEBUG', 'INFO', 'WARN', 'ERROR', 'FATAL');
+      EXCEPTION
+        WHEN duplicate_object THEN null;
+      END $$;
+    `;
+    
     // Create tables if not exist
     await prisma.$executeRaw`CREATE TABLE IF NOT EXISTS "Agent" (id TEXT PRIMARY KEY, name TEXT NOT NULL, type TEXT NOT NULL DEFAULT 'MAIN', status TEXT NOT NULL DEFAULT 'idle', model TEXT NOT NULL, provider TEXT NOT NULL, description TEXT, "runs24h" INTEGER DEFAULT 0, "runsAll" INTEGER DEFAULT 0, "err24h" INTEGER DEFAULT 0, "tokensIn24h" INTEGER DEFAULT 0, "tokensOut24h" INTEGER DEFAULT 0, "costDay" DOUBLE PRECISION DEFAULT 0, "costAll" DOUBLE PRECISION DEFAULT 0, "latencyAvg" DOUBLE PRECISION DEFAULT 0, "latencyP95" DOUBLE PRECISION DEFAULT 0, "contextAvgPct" DOUBLE PRECISION DEFAULT 0, tools TEXT[], "maxTokens" INTEGER, temperature DOUBLE PRECISION, uptime DOUBLE PRECISION DEFAULT 100, errors JSONB[], "createdAt" TIMESTAMP DEFAULT NOW(), "updatedAt" TIMESTAMP DEFAULT NOW())`;
     await prisma.$executeRaw`CREATE TABLE IF NOT EXISTS "Session" (id TEXT PRIMARY KEY, status TEXT NOT NULL DEFAULT 'active', "startedAt" TIMESTAMP DEFAULT NOW(), "lastSeenAt" TIMESTAMP DEFAULT NOW(), "tokens24h" INTEGER DEFAULT 0, model TEXT NOT NULL, "agentName" TEXT NOT NULL)`;
