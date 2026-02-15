@@ -9,11 +9,6 @@ const path = require('path');
 async function getAgents() {
   try {
     const agentsDir = '/home/clawd/.openclaw/agents';
-    const openclawConfig = JSON.parse(require('fs').readFileSync('/home/clawd/.openclaw/openclaw.json', 'utf-8'));
-    
-    // Get default model from openclaw config
-    const defaultModel = openclawConfig.agents?.defaults?.model?.primary || 'MiniMax-M2.5';
-    const defaultProvider = defaultModel.split('/')[0] || 'MiniMax';
     
     if (!fs.existsSync(agentsDir)) {
       console.log('No agents directory found');
@@ -27,24 +22,25 @@ async function getAgents() {
     const agents = [];
     for (const folder of agentFolders) {
       const agentPath = path.join(agentsDir, folder);
-      const agentConfigPath = path.join(agentPath, 'agent.json');
+      const modelsPath = path.join(agentPath, 'agent/models.json');
       
       let name = folder;
-      let model = defaultModel;
-      let provider = defaultProvider;
+      let model = 'unknown';
+      let provider = 'unknown';
       let status = 'idle';
       let description = `${folder} agent`;
       
-      if (fs.existsSync(agentConfigPath)) {
+      // Read models.json to get provider and first model
+      if (fs.existsSync(modelsPath)) {
         try {
-          const agentConfig = JSON.parse(fs.readFileSync(agentConfigPath, 'utf-8'));
-          name = agentConfig.name || name;
-          model = agentConfig.model || model;
-          provider = model.split('/')[0] || provider;
-          description = agentConfig.description || description;
-          status = agentConfig.status || status;
+          const modelsConfig = JSON.parse(fs.readFileSync(modelsPath, 'utf-8'));
+          const firstProvider = Object.keys(modelsConfig.providers)[0];
+          if (firstProvider && modelsConfig.providers[firstProvider].models?.length > 0) {
+            provider = firstProvider;
+            model = modelsConfig.providers[firstProvider].models[0].id;
+          }
         } catch (e) {
-          console.error(`Error reading agent config for ${folder}:`, e.message);
+          console.error(`Error reading models config for ${folder}:`, e.message);
         }
       }
       
@@ -207,41 +203,67 @@ async function getServices() {
   return services;
 }
 
-// Generate demo sessions and runs
-function generateDemoData(agents) {
-  const sessions = [];
-  const runs = [];
+// Generate demo sessions and runs with real status
+async function generateDemoData(agents) {
+  // First, get real sessions from the backend to sync their status
+  let sessions = [];
+  let runs = [];
   
-  // Generate some active sessions
-  for (let i = 0; i < Math.min(agents.length, 3); i++) {
-    const agent = agents[i];
-    sessions.push({
-      id: `sess_${Math.random().toString(36).substr(2, 9)}`,
-      status: i === 0 ? 'active' : 'idle',
-      startedAt: Date.now() - Math.random() * 3600000,
-      lastSeenAt: Date.now() - Math.random() * 60000,
-      tokens24h: Math.floor(Math.random() * 50000),
-      model: agent.model,
-      agent: agent.name,
-    });
+  try {
+    const sessionsRes = await fetch(`${BACKEND_URL}/api/sessions`);
+    if (sessionsRes.ok) {
+      const existingSessions = await sessionsRes.json();
+      sessions = existingSessions;
+    }
+  } catch (e) {
+    console.log('Could not fetch existing sessions');
+  }
+  
+  // If no sessions, generate demo ones
+  if (sessions.length === 0) {
+    // Generate some active sessions
+    for (let i = 0; i < Math.min(agents.length, 3); i++) {
+      const agent = agents[i];
+      sessions.push({
+        id: `sess_${Math.random().toString(36).substr(2, 9)}`,
+        status: i === 0 ? 'active' : 'idle',
+        startedAt: Date.now() - Math.random() * 3600000,
+        lastSeenAt: Date.now() - Math.random() * 60000,
+        tokens24h: Math.floor(Math.random() * 50000),
+        model: agent.model,
+        agent: agent.name,
+      });
+    }
   }
   
   // Generate some runs
-  for (let i = 0; i < 10; i++) {
-    const agent = agents[Math.floor(Math.random() * agents.length)];
-    runs.push({
-      id: `run_${Math.random().toString(36).substr(2, 9)}`,
-      source: Math.random() > 0.5 ? 'CRON' : 'MAIN',
-      label: `Task ${i + 1}`,
-      status: ['queued', 'running', 'finished', 'failed'][Math.floor(Math.random() * 4)],
-      startedAt: Date.now() - Math.random() * 86400000,
-      duration: Math.floor(Math.random() * 60000),
-      model: agent.model,
-      contextPct: Math.floor(Math.random() * 100),
-      tokensIn: Math.floor(Math.random() * 5000),
-      tokensOut: Math.floor(Math.random() * 2000),
-      finishReason: ['stop', 'tool_calls', 'error', 'length'][Math.floor(Math.random() * 4)],
-    });
+  try {
+    const runsRes = await fetch(`${BACKEND_URL}/api/runs`);
+    if (runsRes.ok) {
+      const existingRuns = await runsRes.json();
+      runs = existingRuns;
+    }
+  } catch (e) {
+    console.log('Could not fetch existing runs');
+  }
+  
+  if (runs.length === 0) {
+    for (let i = 0; i < 10; i++) {
+      const agent = agents[Math.floor(Math.random() * agents.length)];
+      runs.push({
+        id: `run_${Math.random().toString(36).substr(2, 9)}`,
+        source: Math.random() > 0.5 ? 'CRON' : 'MAIN',
+        label: `Task ${i + 1}`,
+        status: ['queued', 'running', 'finished', 'failed'][Math.floor(Math.random() * 4)],
+        startedAt: Date.now() - Math.random() * 86400000,
+        duration: Math.floor(Math.random() * 60000),
+        model: agent.model,
+        contextPct: Math.floor(Math.random() * 100),
+        tokensIn: Math.floor(Math.random() * 5000),
+        tokensOut: Math.floor(Math.random() * 2000),
+        finishReason: ['stop', 'tool_calls', 'error', 'length'][Math.floor(Math.random() * 4)],
+      });
+    }
   }
   
   return { sessions, runs };
@@ -254,12 +276,19 @@ async function sync() {
   const agents = await getAgents();
   const skills = await getSkills();
   const services = await getServices();
-  const { sessions, runs } = generateDemoData(agents);
+  const { sessions, runs } = await generateDemoData(agents);
+  
+  // Update agent status based on active sessions
+  const activeAgents = new Set(sessions.filter(s => s.status === 'active').map(s => s.agent));
+  agents.forEach(a => {
+    a.status = activeAgents.has(a.name) ? 'active' : 'idle';
+  });
   
   console.log(`Found ${agents.length} agents: ${agents.map(a => a.name).join(', ')}`);
+  console.log(`Active agents: ${[...activeAgents].join(', ') || 'none'}`);
   console.log(`Found ${skills.length} skills`);
   console.log(`Found ${services.length} services`);
-  console.log(`Generated ${sessions.length} sessions, ${runs.length} runs`);
+  console.log(`Synced ${sessions.length} sessions, ${runs.length} runs`);
   
   const payload = {
     agents,
