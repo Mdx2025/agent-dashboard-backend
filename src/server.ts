@@ -197,8 +197,8 @@ server.post('/api/sync', async (request, reply) => {
     if (sessions) {
       for (const s of sessions) {
         try {
-          // Use raw SQL to avoid Prisma schema issues
-          await prisma.$executeRaw`INSERT INTO "Session" (id, status, "startedAt", "lastSeenAt", "tokens24h", model, "agentName") VALUES ($1, $2, to_timestamp($3/1000), to_timestamp($4/1000), $5, $6, $7) ON CONFLICT (id) DO UPDATE SET status = EXCLUDED.status, "lastSeenAt" = EXCLUDED."lastSeenAt", "tokens24h" = EXCLUDED."tokens24h", model = EXCLUDED.model, "agentName" = EXCLUDED."agentName"`, [s.id, s.status, s.startedAt, s.lastSeenAt, s.tokens24h, s.model, s.agent || s.agentName];
+          // Use simple INSERT to avoid Prisma schema issues
+          await prisma.$executeRaw`INSERT INTO "Session" (id, status, "startedAt", "lastSeenAt", "tokens24h", model, "agentName") VALUES (${s.id}, ${s.status}, ${new Date(s.startedAt)}, ${new Date(s.lastSeenAt)}, ${s.tokens24h}, ${s.model}, ${s.agent || s.agentName}) ON CONFLICT (id) DO UPDATE SET status = EXCLUDED.status, "lastSeenAt" = EXCLUDED."lastSeenAt", "tokens24h" = EXCLUDED."tokens24h"`;
         } catch (e: any) {
           console.log('Session sync warning:', e.message);
         }
@@ -208,7 +208,7 @@ server.post('/api/sync', async (request, reply) => {
     if (runs) {
       for (const r of runs) {
         try {
-          await prisma.$executeRaw`INSERT INTO "Run" (id, source, label, status, "startedAt", duration, model, "contextPct", "tokensIn", "tokensOut", "finishReason") VALUES ($1, $2, $3, $4, to_timestamp($5/1000), $6, $7, $8, $9, $10, $11) ON CONFLICT (id) DO UPDATE SET source = EXCLUDED.source, label = EXCLUDED.label, status = EXCLUDED.status, "startedAt" = EXCLUDED."startedAt", duration = EXCLUDED.duration, model = EXCLUDED.model, "contextPct" = EXCLUDED."contextPct", "tokensIn" = EXCLUDED."tokensIn", "tokensOut" = EXCLUDED."tokensOut", "finishReason" = EXCLUDED."finishReason"`, [r.id, r.source, r.label, r.status, r.startedAt, r.duration, r.model, r.contextPct, r.tokensIn, r.tokensOut, r.finishReason];
+          await prisma.$executeRaw`INSERT INTO "Run" (id, source, label, status, "startedAt", duration, model, "contextPct", "tokensIn", "tokensOut", "finishReason") VALUES (${r.id}, ${r.source}, ${r.label}, ${r.status}, ${new Date(r.startedAt)}, ${r.duration}, ${r.model}, ${r.contextPct}, ${r.tokensIn}, ${r.tokensOut}, ${r.finishReason}) ON CONFLICT (id) DO UPDATE SET source = EXCLUDED.source, label = EXCLUDED.label, status = EXCLUDED.status, duration = EXCLUDED.duration, "contextPct" = EXCLUDED."contextPct", "tokensIn" = EXCLUDED."tokensIn", "tokensOut" = EXCLUDED."tokensOut", "finishReason" = EXCLUDED."finishReason"`;
         } catch (e: any) {
           console.log('Run sync warning:', e.message);
         }
