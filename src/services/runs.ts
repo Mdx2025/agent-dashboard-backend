@@ -21,7 +21,8 @@ function transformRun(data: any): Run {
  * Fetch all runs.
  */
 export async function fetchRuns(): Promise<Run[]> {
-  const data = await apiRequest<any[]>('/runs');
+  const response = await apiRequest<any>('/runs');
+  const data = Array.isArray(response) ? response : response.runs || [];
   return data.map(transformRun);
 }
 

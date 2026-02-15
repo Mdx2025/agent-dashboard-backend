@@ -20,7 +20,8 @@ function transformLog(data: any): LogEntry {
  * Fetch all log entries.
  */
 export async function fetchLogs(): Promise<LogEntry[]> {
-  const data = await apiRequest<any[]>('/logs');
+  const response = await apiRequest<any>('/logs');
+  const data = Array.isArray(response) ? response : response.logs || [];
   return data.map(transformLog);
 }
 

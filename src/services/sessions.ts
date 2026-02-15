@@ -25,7 +25,8 @@ function transformSession(data: any): Session {
  * Fetch all sessions.
  */
 export async function fetchSessions(): Promise<Session[]> {
-  const data = await apiRequest<any[]>('/sessions');
+  const response = await apiRequest<any>('/sessions');
+  const data = Array.isArray(response) ? response : response.sessions || [];
   return data.map(transformSession);
 }
 
