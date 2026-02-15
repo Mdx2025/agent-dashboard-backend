@@ -206,7 +206,7 @@ function CtxBar({p}) {
 
 function DGrid({items}) {
   return (
-    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8}}>
+    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:16}}>
       {items.map((x, i) => (
         <div key={i} style={{background:C.bgSub,borderRadius:8,padding:"8px 10px",border:"1px solid "+C.bdr}}>
           <div style={{fontSize:9,color:C.t3,marginBottom:3,textTransform:"uppercase"}}>{x.l}</div>
@@ -268,7 +268,7 @@ function OverviewTab() {
       <h1 style={{fontSize:17,fontWeight:600,color:C.t1,marginBottom:4}}>Overview</h1>
       <span style={{fontSize:11,color:C.t3}}>Real-time agent operations</span>
       
-      <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:10,margin:"16px 0"}}>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:20,margin:"20px 0"}}>
         <KPI label="Sessions" value={sessions.length} sub={`${activeSessions} active`} />
         <KPI label="Tokens" value={fm(totalTokens)} sub={fm(totalTokens)+" total"} trend="+18%" />
         <KPI label="Cost" value={"$"+totalCost.toFixed(2)} sub="$12.45 24h" trend="+12%" />
@@ -281,9 +281,9 @@ function OverviewTab() {
       </div>
 
       <SLbl>Agents</SLbl>
-      <div style={{display:"flex",gap:8,overflowX:"auto",paddingBottom:4,marginBottom:16}}>
+      <div style={{display:"flex",gap:12,overflowX:"auto",paddingBottom:8,marginBottom:20}}>
         {agents.map(a => (
-          <Card key={a.id} hover p="10px 14px" style={{minWidth:160,flex:"0 0 auto"}}>
+          <Card key={a.id} hover p="16px 20px" style={{minWidth:180,flex:"0 0 auto"}}>
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
               <span style={{fontSize:11,fontWeight:600,color:C.t1}}>{a.name}</span>
               <Pill s={a.status} glow={a.status==="active"} />
@@ -383,7 +383,7 @@ function AgentsTab() {
   return (
     <div>
       <h1 style={{fontSize:17,fontWeight:600,color:C.t1,marginBottom:16}}>Agents</h1>
-      <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10,marginBottom:14}}>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:20,marginBottom:20}}>
         <Card p="12px"><div style={{fontSize:10,color:C.t3,marginBottom:4}}>TOTAL</div><div style={{fontSize:22,fontWeight:700,color:C.t1}}>{agents.length}</div></Card>
         <Card p="12px"><div style={{fontSize:10,color:C.t3,marginBottom:4}}>RUNS 24H</div><div style={{fontSize:22,fontWeight:700,color:C.t1}}>{tR}</div></Card>
         <Card p="12px"><div style={{fontSize:10,color:C.t3,marginBottom:4}}>ERRORS</div><div style={{fontSize:22,fontWeight:700,color:C.er}}>{tE}</div></Card>

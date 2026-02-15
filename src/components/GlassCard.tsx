@@ -10,7 +10,7 @@ interface GlassCardProps {
     padding?: string | number;
 }
 
-export function GlassCard({ children, style, hover = false, onClick, padding = "16px" }: GlassCardProps) {
+export function GlassCard({ children, style, hover = false, onClick, padding = "24px" }: GlassCardProps) {
     const [isHovered, setIsHovered] = useState(false);
 
     const baseStyle: CSSProperties = {
