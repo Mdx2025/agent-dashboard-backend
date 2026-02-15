@@ -9,6 +9,12 @@ const path = require('path');
 async function getAgents() {
   try {
     const agentsDir = '/home/clawd/.openclaw/agents';
+    const openclawConfig = JSON.parse(require('fs').readFileSync('/home/clawd/.openclaw/openclaw.json', 'utf-8'));
+    
+    // Get default model from openclaw config
+    const defaultModel = openclawConfig.agents?.defaults?.model?.primary || 'MiniMax-M2.5';
+    const defaultProvider = defaultModel.split('/')[0] || 'MiniMax';
+    
     if (!fs.existsSync(agentsDir)) {
       console.log('No agents directory found');
       return [];
@@ -24,8 +30,8 @@ async function getAgents() {
       const agentConfigPath = path.join(agentPath, 'agent.json');
       
       let name = folder;
-      let model = 'MiniMax-M2.5';
-      let provider = 'MiniMax';
+      let model = defaultModel;
+      let provider = defaultProvider;
       let status = 'idle';
       let description = `${folder} agent`;
       
