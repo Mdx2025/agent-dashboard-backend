@@ -206,8 +206,9 @@ server.listen({ port: Number(PORT), host: '0.0.0.0' }, async (err, address) => {
   }
   console.log('Server on ' + address);
   
-  // Try to ensure tables exist using raw SQL
+  // Try to ensure tables exist and have correct columns using raw SQL
   try {
+    // Create tables if not exist
     await prisma.$executeRaw`CREATE TABLE IF NOT EXISTS "Agent" (id TEXT PRIMARY KEY, name TEXT NOT NULL, type TEXT NOT NULL DEFAULT 'MAIN', status TEXT NOT NULL DEFAULT 'idle', model TEXT NOT NULL, provider TEXT NOT NULL, description TEXT, "runs24h" INTEGER DEFAULT 0, "runsAll" INTEGER DEFAULT 0, "err24h" INTEGER DEFAULT 0, "tokensIn24h" INTEGER DEFAULT 0, "tokensOut24h" INTEGER DEFAULT 0, "costDay" DOUBLE PRECISION DEFAULT 0, "costAll" DOUBLE PRECISION DEFAULT 0, "latencyAvg" DOUBLE PRECISION DEFAULT 0, "latencyP95" DOUBLE PRECISION DEFAULT 0, "contextAvgPct" DOUBLE PRECISION DEFAULT 0, tools TEXT[], "maxTokens" INTEGER, temperature DOUBLE PRECISION, uptime DOUBLE PRECISION DEFAULT 100, errors JSONB[], "createdAt" TIMESTAMP DEFAULT NOW(), "updatedAt" TIMESTAMP DEFAULT NOW())`;
     await prisma.$executeRaw`CREATE TABLE IF NOT EXISTS "Session" (id TEXT PRIMARY KEY, status TEXT NOT NULL DEFAULT 'active', "startedAt" TIMESTAMP DEFAULT NOW(), "lastSeenAt" TIMESTAMP DEFAULT NOW(), "tokens24h" INTEGER DEFAULT 0, model TEXT NOT NULL, "agentName" TEXT NOT NULL)`;
     await prisma.$executeRaw`CREATE TABLE IF NOT EXISTS "Run" (id TEXT PRIMARY KEY, source TEXT NOT NULL DEFAULT 'MAIN', label TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'queued', "startedAt" TIMESTAMP DEFAULT NOW(), duration INTEGER, model TEXT NOT NULL, "contextPct" DOUBLE PRECISION DEFAULT 0, "tokensIn" INTEGER DEFAULT 0, "tokensOut" INTEGER DEFAULT 0, "finishReason" TEXT)`;
@@ -216,7 +217,18 @@ server.listen({ port: Number(PORT), host: '0.0.0.0' }, async (err, address) => {
     await prisma.$executeRaw`CREATE TABLE IF NOT EXISTS "HealthCheck" (id TEXT PRIMARY KEY, name TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'pass', detail TEXT NOT NULL, "durationMs" INTEGER NOT NULL, "createdAt" TIMESTAMP DEFAULT NOW())`;
     await prisma.$executeRaw`CREATE TABLE IF NOT EXISTS "Service" (id TEXT PRIMARY KEY, name TEXT UNIQUE NOT NULL, status TEXT NOT NULL DEFAULT 'healthy', host TEXT, port INTEGER, "latencyMs" INTEGER DEFAULT 0, "cpuPct" DOUBLE PRECISION DEFAULT 0, "memPct" DOUBLE PRECISION DEFAULT 0, version TEXT, metadata JSONB DEFAULT '{}', "createdAt" TIMESTAMP DEFAULT NOW(), "updatedAt" TIMESTAMP DEFAULT NOW())`;
     await prisma.$executeRaw`CREATE TABLE IF NOT EXISTS "LogEntry" (id TEXT PRIMARY KEY, timestamp TIMESTAMP DEFAULT NOW(), level TEXT NOT NULL, source TEXT NOT NULL, message TEXT NOT NULL, "runId" TEXT, "requestId" TEXT, extra JSONB)`;
-    console.log('Database tables ensured');
+    
+    // Add missing columns if table already exists (ignore errors)
+    try {
+      await prisma.$executeRaw`ALTER TABLE "Agent" ADD COLUMN IF NOT EXISTS tools TEXT[]`;
+      await prisma.$executeRaw`ALTER TABLE "Agent" ADD COLUMN IF NOT EXISTS "maxTokens" INTEGER`;
+      await prisma.$executeRaw`ALTER TABLE "Agent" ADD COLUMN IF NOT EXISTS temperature DOUBLE PRECISION`;
+      await prisma.$executeRaw`ALTER TABLE "Agent" ADD COLUMN IF NOT EXISTS errors JSONB[]`;
+    } catch (e) {
+      // Columns might already exist, ignore
+    }
+    
+    console.log('Database tables and columns ensured');
   } catch (e: any) {
     console.log('Table creation warning:', e.message);
   }
