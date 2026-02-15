@@ -10,6 +10,7 @@ export function UsageTab() {
   const [runs, setRuns] = useState<Run[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
+  const [providerFilter, setProviderFilter] = useState<string>('ALL');
 
   useEffect(() => {
     loadUsageData();
@@ -36,6 +37,14 @@ export function UsageTab() {
   if (loading) return <div className="p-4">Loading usage data...</div>;
   if (error) return <div className="p-4" style={{ color: 'red' }}>Error: {error}</div>;
 
+  // Get unique providers from agents for filter
+  const providers = ['ALL', ...new Set(agents.map(a => a.provider).filter(Boolean))];
+  
+  // Filter agents by provider
+  const filteredAgents = providerFilter === 'ALL' 
+    ? agents 
+    : agents.filter(a => a.provider === providerFilter);
+
   // Calculate some basic metrics
   const totalTokensIn = runs.reduce((sum, run) => sum + (run.tokensIn || 0), 0);
   const totalTokensOut = runs.reduce((sum, run) => sum + (run.tokensOut || 0), 0);
@@ -47,6 +56,26 @@ export function UsageTab() {
     <div className="p-4">
       <h1 className="text-2xl font-bold mb-4">Usage & Metrics</h1>
       <p className="mb-6 text-gray-600">Detailed metrics on agent usage and system performance.</p>
+      
+      {/* Provider Filter */}
+      <div className="mb-4 flex gap-2 flex-wrap">
+        {providers.map(provider => (
+          <button
+            key={provider}
+            onClick={() => setProviderFilter(provider)}
+            className={`px-3 py-1 rounded text-sm font-medium transition-colors ${
+              providerFilter === provider
+                ? 'bg-blue-500 text-white'
+                : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+            }`}
+          >
+            {provider}
+          </button>
+        ))}
+        <span className="ml-auto text-sm text-gray-500 self-center">
+          {filteredAgents.length} agents
+        </span>
+      </div>
       
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
         {/* Total Tokens In */}
@@ -85,7 +114,7 @@ export function UsageTab() {
                 </tr>
               </thead>
               <tbody>
-                {agents
+                {filteredAgents
                   .sort((a, b) => b.runs24h - a.runs24h)
                   .slice(0, 10)
                   .map((agent) => (

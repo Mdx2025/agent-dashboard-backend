@@ -8,6 +8,8 @@ export function LogsTab() {
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
+  const [levelFilter, setLevelFilter] = useState<string>('ALL');
+  const [searchQuery, setSearchQuery] = useState<string>('');
 
   // Form state for creating a log
   const [newLog, setNewLog] = useState<CreateLogDto>({
@@ -63,10 +65,53 @@ export function LogsTab() {
   if (loading) return <div className="p-4">Loading logs...</div>;
   if (error) return <div className="p-4" style={{ color: 'red' }}>Error: {error}</div>;
 
+  // Filter logs by level and search
+  const filteredLogs = logs.filter(log => {
+    const matchesLevel = levelFilter === 'ALL' || log.level === levelFilter;
+    const matchesSearch = searchQuery === '' || 
+      log.message?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      log.source?.toLowerCase().includes(searchQuery.toLowerCase());
+    return matchesLevel && matchesSearch;
+  });
+
   return (
     <div className="p-4">
       <h1 className="text-2xl font-bold mb-4">Logs</h1>
       <p className="mb-6 text-gray-600">System event logs and messages.</p>
+      
+      {/* Filters */}
+      <div className="mb-4 flex gap-2 flex-wrap items-center">
+        {['ALL', 'DEBUG', 'INFO', 'WARN', 'ERROR'].map(level => (
+          <button
+            key={level}
+            onClick={() => setLevelFilter(level)}
+            className={`px-3 py-1 rounded text-sm font-medium transition-colors ${
+              levelFilter === level
+                ? level === 'ERROR' ? 'bg-red-500 text-white' :
+                  level === 'WARN' ? 'bg-yellow-500 text-white' :
+                  level === 'INFO' ? 'bg-blue-500 text-white' :
+                  level === 'DEBUG' ? 'bg-gray-500 text-white' :
+                  'bg-blue-500 text-white'
+                : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+            }`}
+          >
+            {level}
+          </button>
+        ))}
+        
+        {/* Search */}
+        <input
+          type="text"
+          placeholder="Search logs..."
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          className="ml-4 px-3 py-1 border rounded text-sm flex-1 max-w-xs"
+        />
+        
+        <span className="ml-auto text-sm text-gray-500">
+          {filteredLogs.length} logs
+        </span>
+      </div>
       
       {/* Create Log Form */}
       <div className="mb-6 border rounded p-4 bg-gray-50">
@@ -110,11 +155,11 @@ export function LogsTab() {
 
       {/* Logs List */}
       <div className="border rounded overflow-hidden shadow-md">
-        {logs.length === 0 ? (
+        {filteredLogs.length === 0 ? (
           <div className="p-4 text-center text-gray-500">No logs found.</div>
         ) : (
           <ul className="divide-y">
-            {logs.map((log) => (
+            {filteredLogs.map((log) => (
               <li key={log.id} className="p-4 hover:bg-gray-50">
                 <div className="flex justify-between items-start mb-1">
                   <div className="flex items-center space-x-2">
