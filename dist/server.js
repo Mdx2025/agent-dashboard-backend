@@ -1,448 +1,409 @@
 "use strict";
-// backend/app/src/server.ts
+// OpenClaw Dashboard Backend - Versión híbrida con Webhooks + Polling
+// En desarrollo: lee de archivos locales
+// Soporta: Webhooks para eventos críticos + Polling para KPIs
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
 var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 const fastify_1 = __importDefault(require("fastify"));
-const prisma_1 = require("./lib/prisma");
-const server = (0, fastify_1.default)({
-    logger: true,
-});
-// --- API Routes ---
-// 1. Health Check Route
-server.get('/health', async (request, reply) => {
-    return { status: 'ok', timestamp: new Date().toISOString() };
-});
-// 2. Get All Agents Route
-server.get('/api/agents', async (request, reply) => {
+const fs = __importStar(require("fs"));
+const path = __importStar(require("path"));
+const crypto_1 = require("crypto");
+const server = (0, fastify_1.default)({ logger: true });
+// =============================================================================
+// CONFIGURACIÓN
+// =============================================================================
+const CONFIG = {
+    webhookSecret: process.env.WEBHOOK_SECRET || 'openclaw-secret-key',
+    pollingIntervalMs: 30000, // 30 segundos
+};
+// Event stores (in-memory, resets on restart)
+const eventsStore = {
+    logs: [],
+    sessions: [],
+    runs: [],
+    lastUpdate: Date.now()
+};
+// =============================================================================
+// HELPERS
+// =============================================================================
+function readJsonFile(filepath) {
     try {
-        const agents = await prisma_1.prisma.agent.findMany();
-        return agents;
+        if (fs.existsSync(filepath)) {
+            return JSON.parse(fs.readFileSync(filepath, 'utf-8'));
+        }
+    }
+    catch (e) {
+        console.error(`Error reading ${filepath}:`, e);
+    }
+    return null;
+}
+function listDir(dirpath) {
+    try {
+        if (fs.existsSync(dirpath)) {
+            return fs.readdirSync(dirpath).filter(f => !f.startsWith('.'));
+        }
+    }
+    catch (e) {
+        console.error(`Error listing ${dirpath}:`, e);
+    }
+    return [];
+}
+function verifyWebhookSignature(payload, signature) {
+    const expected = (0, crypto_1.createHash)('sha256')
+        .update(payload + CONFIG.webhookSecret)
+        .digest('hex');
+    return signature === expected;
+}
+// =============================================================================
+// HEALTH & STATUS
+// =============================================================================
+server.get('/api/health', async () => {
+    return {
+        status: 'ok',
+        timestamp: new Date().toISOString(),
+        uptime: process.uptime()
+    };
+});
+// =============================================================================
+// WEBHOOKS - Receivers para eventos críticos
+// =============================================================================
+// Webhook para logs
+server.post('/api/webhook/logs', async (request, reply) => {
+    try {
+        const signature = request.headers['x-webhook-signature'];
+        const body = JSON.stringify(request.body);
+        // Verificar firma (opcional en desarrollo)
+        if (signature && !verifyWebhookSignature(body, signature)) {
+            return reply.status(401).send({ error: 'Invalid signature' });
+        }
+        const log = request.body;
+        eventsStore.logs.unshift({
+            ...log,
+            id: log.id || `log_${Date.now()}`,
+            timestamp: log.timestamp || Date.now()
+        });
+        // Mantener solo últimos 500 logs
+        if (eventsStore.logs.length > 500) {
+            eventsStore.logs = eventsStore.logs.slice(0, 500);
+        }
+        eventsStore.lastUpdate = Date.now();
+        return { received: true, event: 'log' };
     }
     catch (error) {
-        server.log.error(error, 'Failed to fetch agents');
-        reply.status(500).send({ error: 'Internal Server Error' });
+        server.log.error(error, 'Failed to process log webhook');
+        return reply.status(400).send({ error: error.message });
     }
 });
-// --- Sessions CRUD ---
-// 7. List all Sessions
+// Webhook para sesiones
+server.post('/api/webhook/sessions', async (request, reply) => {
+    try {
+        const session = request.body;
+        // Actualizar o agregar sesión
+        const existingIndex = eventsStore.sessions.findIndex(s => s.id === session.id);
+        if (existingIndex >= 0) {
+            eventsStore.sessions[existingIndex] = session;
+        }
+        else {
+            eventsStore.sessions.unshift(session);
+        }
+        // Mantener solo últimas 100 sesiones
+        if (eventsStore.sessions.length > 100) {
+            eventsStore.sessions = eventsStore.sessions.slice(0, 100);
+        }
+        eventsStore.lastUpdate = Date.now();
+        return { received: true, event: 'session' };
+    }
+    catch (error) {
+        server.log.error(error, 'Failed to process session webhook');
+        return reply.status(400).send({ error: error.message });
+    }
+});
+// Webhook para runs
+server.post('/api/webhook/runs', async (request, reply) => {
+    try {
+        const run = request.body;
+        // Actualizar o agregar run
+        const existingIndex = eventsStore.runs.findIndex(r => r.id === run.id);
+        if (existingIndex >= 0) {
+            eventsStore.runs[existingIndex] = run;
+        }
+        else {
+            eventsStore.runs.unshift(run);
+        }
+        // Mantener solo últimos 100 runs
+        if (eventsStore.runs.length > 100) {
+            eventsStore.runs = eventsStore.runs.slice(0, 100);
+        }
+        eventsStore.lastUpdate = Date.now();
+        return { received: true, event: 'run' };
+    }
+    catch (error) {
+        server.log.error(error, 'Failed to process run webhook');
+        return reply.status(400).send({ error: error.message });
+    }
+});
+// Batch webhook para múltiples eventos
+server.post('/api/webhook/batch', async (request, reply) => {
+    try {
+        const events = request.body;
+        const results = [];
+        for (const event of events) {
+            switch (event.type) {
+                case 'log':
+                    eventsStore.logs.unshift({ ...event.data, timestamp: Date.now() });
+                    results.push({ type: 'log', status: 'ok' });
+                    break;
+                case 'session':
+                    eventsStore.sessions.unshift(event.data);
+                    results.push({ type: 'session', status: 'ok' });
+                    break;
+                case 'run':
+                    eventsStore.runs.unshift(event.data);
+                    results.push({ type: 'run', status: 'ok' });
+                    break;
+                default:
+                    results.push({ type: event.type, status: 'unknown type' });
+            }
+        }
+        // Limpiar stores si exceden límite
+        if (eventsStore.logs.length > 500)
+            eventsStore.logs = eventsStore.logs.slice(0, 500);
+        if (eventsStore.sessions.length > 100)
+            eventsStore.sessions = eventsStore.sessions.slice(0, 100);
+        if (eventsStore.runs.length > 100)
+            eventsStore.runs = eventsStore.runs.slice(0, 100);
+        eventsStore.lastUpdate = Date.now();
+        return { received: true, results };
+    }
+    catch (error) {
+        server.log.error(error, 'Failed to process batch webhook');
+        return reply.status(400).send({ error: error.message });
+    }
+});
+// =============================================================================
+// API ENDPOINTS - Datos para el frontend
+// =============================================================================
+// Overview con datos frescos
+server.get('/api/overview', async () => {
+    const openclawDir = process.env.OPENCLAW_DIR || '/home/clawd/.openclaw';
+    const agentsDir = path.join(openclawDir, 'agents');
+    const agentNames = listDir(agentsDir);
+    const workspaces = agentNames.map(name => ({
+        name,
+        workspace: path.join(openclawDir, 'workspace' + (name !== 'main' ? `-${name}` : ''))
+    }));
+    let activeSessions = 0;
+    for (const agent of agentNames) {
+        const sessionsDir = path.join(openclawDir, 'agents', agent, 'sessions');
+        if (fs.existsSync(sessionsDir)) {
+            const files = fs.readdirSync(sessionsDir);
+            activeSessions += files.filter(f => f.endsWith('.jsonl') && !f.includes('.deleted')).length;
+        }
+    }
+    return {
+        active_agents: agentNames.length,
+        active_sessions: activeSessions,
+        total_tokens_used: 0,
+        active_skills: listDir(path.join(openclawDir, 'skills')).length,
+        system_status: 'healthy',
+        uptime_seconds: process.uptime(),
+        last_updated: new Date().toISOString(),
+        data_source: 'polling',
+        agents: workspaces.map(w => ({
+            name: w.name,
+            workspace: w.workspace
+        }))
+    };
+});
+// Agents - Lista de agentes
+server.get('/api/agents', async () => {
+    const openclawDir = process.env.OPENCLAW_DIR || '/home/clawd/.openclaw';
+    const agentsDir = path.join(openclawDir, 'agents');
+    const agentNames = listDir(agentsDir);
+    const agents = [];
+    for (const name of agentNames) {
+        const agentDir = path.join(agentsDir, name);
+        const identityPath = path.join(agentDir, 'IDENTITY.md');
+        const identity = readJsonFile(identityPath);
+        agents.push({
+            id: name,
+            name,
+            status: 'active',
+            type: name === 'main' ? 'MAIN' : 'SUBAGENT',
+            provider: 'Anthropic',
+            model: 'claude-sonnet-4',
+            description: identity?.description || `Agent: ${name}`,
+            runs24h: Math.floor(Math.random() * 100),
+            err24h: Math.floor(Math.random() * 5),
+            costDay: Math.random() * 10,
+            identity: identity ? {
+                name: identity.name || name,
+                creature: identity.creature,
+                emoji: identity.emoji
+            } : null
+        });
+    }
+    return agents;
+});
+// Channels
+server.get('/api/channels', async () => {
+    const openclawDir = process.env.OPENCLAW_DIR || '/home/clawd/.openclaw';
+    const config = readJsonFile(path.join(openclawDir, 'openclaw.json'));
+    const channels = [];
+    if (config?.channels) {
+        for (const [name, data] of Object.entries(config.channels)) {
+            channels.push({
+                name,
+                ...data,
+                status: data.enabled ? 'running' : 'stopped'
+            });
+        }
+    }
+    return channels;
+});
+// Skills
+server.get('/api/skills', async () => {
+    const openclawDir = process.env.OPENCLAW_DIR || '/home/clawd/.openclaw';
+    const skillsDir = path.join(openclawDir, 'skills');
+    const skillNames = listDir(skillsDir);
+    return skillNames.map(name => {
+        const skillPath = path.join(skillsDir, name, 'SKILL.md');
+        const exists = fs.existsSync(skillPath);
+        return {
+            id: name,
+            name,
+            enabled: exists,
+            description: exists ? `Skill: ${name}` : '',
+            version: '1.0.0'
+        };
+    });
+});
+// Sessions desde webhook store
 server.get('/api/sessions', async (request, reply) => {
-    try {
-        const sessions = await prisma_1.prisma.session.findMany();
-        return sessions;
+    const forceRefresh = request.query.refresh === 'true';
+    // Si hay sesiones del webhook, devolverlas
+    if (eventsStore.sessions.length > 0 && !forceRefresh) {
+        return {
+            sessions: eventsStore.sessions,
+            total: eventsStore.sessions.length,
+            source: 'webhook'
+        };
     }
-    catch (error) {
-        server.log.error(error, 'Failed to fetch sessions');
-        reply.status(500).send({ error: 'Internal Server Error' });
-    }
-});
-// 9. Get Session by ID
-server.get('/api/sessions/:id', async (request, reply) => {
-    const { id } = request.params;
-    try {
-        const session = await prisma_1.prisma.session.findUnique({ where: { id } });
-        if (!session) {
-            return reply.status(404).send({ error: 'Session not found' });
+    // Si no, usar datos del polling
+    const openclawDir = process.env.OPENCLAW_DIR || '/home/clawd/.openclaw';
+    const agentsDir = path.join(openclawDir, 'agents');
+    const agentNames = listDir(agentsDir);
+    const sessions = [];
+    for (const agent of agentNames) {
+        const sessionsDir = path.join(agentsDir, agent, 'sessions');
+        if (fs.existsSync(sessionsDir)) {
+            const files = fs.readdirSync(sessionsDir)
+                .filter(f => f.endsWith('.jsonl') && !f.includes('.deleted'))
+                .sort()
+                .reverse()
+                .slice(0, 10);
+            for (const file of files) {
+                const filepath = path.join(sessionsDir, file);
+                const stats = fs.statSync(filepath);
+                sessions.push({
+                    id: file.replace('.jsonl', ''),
+                    agent,
+                    created_at: stats.mtime.toISOString(),
+                    size: stats.size,
+                    status: 'idle'
+                });
+            }
         }
-        return session;
     }
-    catch (error) {
-        server.log.error(error, `Failed to fetch session ${id}`);
-        reply.status(500).send({ error: 'Internal Server Error' });
-    }
+    return {
+        sessions: sessions.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()).slice(0, 50),
+        total: sessions.length,
+        source: 'polling'
+    };
 });
-// 10. Update Session by ID
-server.put('/api/sessions/:id', async (request, reply) => {
-    const { id } = request.params;
-    const data = request.body; // TODO: Validation
-    try {
-        const updatedSession = await prisma_1.prisma.session.update({
-            where: { id },
-            data: {
-                status: data.status,
-                lastSeenAt: new Date(), // Always update lastSeenAt on any update
-            },
-        });
-        return updatedSession;
-    }
-    catch (error) {
-        if (error instanceof Error && 'code' in error && error.code === 'P2025') {
-            return reply.status(404).send({ error: 'Session not found' });
-        }
-        server.log.error(error, `Failed to update session ${id}`);
-        reply.status(500).send({ error: 'Internal Server Error' });
-    }
+// Runs desde webhook store
+server.get('/api/runs', async () => {
+    // Devolver runs del webhook store
+    return {
+        runs: eventsStore.runs,
+        total: eventsStore.runs.length,
+        source: 'webhook'
+    };
 });
-// --- Runs CRUD ---
-// 12. List all Runs
-server.get('/api/runs', async (request, reply) => {
-    try {
-        const runs = await prisma_1.prisma.run.findMany();
-        return runs;
+// Logs desde webhook store (real-time)
+server.get('/api/logs', async (request) => {
+    const level = request.query.level;
+    const limit = parseInt(request.query.limit) || 100;
+    let logs = eventsStore.logs;
+    // Filtrar por nivel si se especifica
+    if (level && level !== 'ALL') {
+        logs = logs.filter(l => l.level === level);
     }
-    catch (error) {
-        server.log.error(error, 'Failed to fetch runs');
-        reply.status(500).send({ error: 'Internal Server Error' });
-    }
+    return {
+        logs: logs.slice(0, limit),
+        total: logs.length,
+        source: 'webhook',
+        last_update: eventsStore.lastUpdate
+    };
 });
-// 14. Get Run by ID
-server.get('/api/runs/:id', async (request, reply) => {
-    const { id } = request.params;
-    try {
-        const run = await prisma_1.prisma.run.findUnique({ where: { id } });
-        if (!run) {
-            return reply.status(404).send({ error: 'Run not found' });
-        }
-        return run;
-    }
-    catch (error) {
-        server.log.error(error, `Failed to fetch run ${id}`);
-        reply.status(500).send({ error: 'Internal Server Error' });
-    }
+// Token usage - Placeholder
+server.get('/api/token-usage', async () => {
+    return {
+        total_tokens: 0,
+        total_cost_usd: 0,
+        by_agent: {},
+        by_model: {},
+        hourly_history: [],
+        daily_history: [],
+        note: 'Token tracking requires gateway integration'
+    };
 });
-// 15. Update Run by ID
-server.put('/api/runs/:id', async (request, reply) => {
-    const { id } = request.params;
-    const data = request.body; // TODO: Validation
-    try {
-        const updatedRun = await prisma_1.prisma.run.update({
-            where: { id },
-            data: {
-                status: data.status,
-                duration: data.duration,
-                contextPct: data.contextPct,
-                tokensIn: data.tokensIn,
-                tokensOut: data.tokensOut,
-                finishReason: data.finishReason,
-            },
-        });
-        return updatedRun;
-    }
-    catch (error) {
-        if (error instanceof Error && 'code' in error && error.code === 'P2025') {
-            return reply.status(404).send({ error: 'Run not found' });
-        }
-        server.log.error(error, `Failed to update run ${id}`);
-        reply.status(500).send({ error: 'Internal Server Error' });
-    }
-});
-// --- Skills CRUD ---
-// 17. List all Skills
-server.get('/api/skills', async (request, reply) => {
-    try {
-        const skills = await prisma_1.prisma.skill.findMany();
-        return skills;
-    }
-    catch (error) {
-        server.log.error(error, 'Failed to fetch skills');
-        reply.status(500).send({ error: 'Internal Server Error' });
-    }
-});
-// 18. Create a new Skill
-server.post('/api/skills', async (request, reply) => {
-    const data = request.body; // TODO: Validation
-    try {
-        const newSkill = await prisma_1.prisma.skill.create({
-            data: {
-                name: data.name,
-                version: data.version,
-                category: data.category,
-                enabled: data.enabled,
-                description: data.description,
-                config: data.config || {},
-                dependencies: data.dependencies || [],
-                changelog: data.changelog || [],
-            },
-        });
-        reply.status(201).send(newSkill);
-    }
-    catch (error) {
-        server.log.error(error, 'Failed to create skill');
-        reply.status(500).send({ error: 'Internal Server Error' });
-    }
-});
-// 19. Get Skill by ID
-server.get('/api/skills/:id', async (request, reply) => {
-    const { id } = request.params;
-    try {
-        const skill = await prisma_1.prisma.skill.findUnique({ where: { id } });
-        if (!skill) {
-            return reply.status(404).send({ error: 'Skill not found' });
-        }
-        return skill;
-    }
-    catch (error) {
-        server.log.error(error, `Failed to fetch skill ${id}`);
-        reply.status(500).send({ error: 'Internal Server Error' });
-    }
-});
-// 20. Update Skill by ID
-server.put('/api/skills/:id', async (request, reply) => {
-    const { id } = request.params;
-    const data = request.body; // TODO: Validation
-    try {
-        const updatedSkill = await prisma_1.prisma.skill.update({
-            where: { id },
-            data: {
-                version: data.version,
-                enabled: data.enabled,
-                description: data.description,
-                config: data.config,
-                dependencies: data.dependencies,
-                changelog: data.changelog,
-            },
-        });
-        return updatedSkill;
-    }
-    catch (error) {
-        if (error instanceof Error && 'code' in error && error.code === 'P2025') {
-            return reply.status(404).send({ error: 'Skill not found' });
-        }
-        server.log.error(error, `Failed to update skill ${id}`);
-        reply.status(500).send({ error: 'Internal Server Error' });
-    }
-});
-// --- Services & Health ---
-// 24. List all Services
-server.get('/api/services', async (request, reply) => {
-    try {
-        const services = await prisma_1.prisma.service.findMany();
-        return services;
-    }
-    catch (error) {
-        server.log.error(error, 'Failed to fetch services');
-        reply.status(500).send({ error: 'Internal Server Error' });
-    }
-});
-// 25. List all Health Checks
-server.get('/api/health', async (request, reply) => {
-    try {
-        const healthChecks = await prisma_1.prisma.healthCheck.findMany({
-            orderBy: { createdAt: 'desc' },
-            take: 10, // Get the 10 most recent checks
-        });
-        return healthChecks;
-    }
-    catch (error) {
-        server.log.error(error, 'Failed to fetch health checks');
-        reply.status(500).send({ error: 'Internal Server Error' });
-    }
-});
-// --- Logs ---
-// 22. List all Log Entries
-server.get('/api/logs', async (request, reply) => {
-    try {
-        // In a real app, you'd want pagination here.
-        const logs = await prisma_1.prisma.logEntry.findMany({
-            orderBy: { timestamp: 'desc' },
-            take: 100, // Limit to the last 100 logs for now
-        });
-        return logs;
-    }
-    catch (error) {
-        server.log.error(error, 'Failed to fetch logs');
-        reply.status(500).send({ error: 'Internal Server Error' });
-    }
-});
-// 23. Create a new Log Entry
-server.post('/api/logs', async (request, reply) => {
-    const data = request.body; // TODO: Validation
-    try {
-        const newLog = await prisma_1.prisma.logEntry.create({
-            data: {
-                level: data.level,
-                source: data.source,
-                message: data.message,
-                runId: data.runId,
-                requestId: data.requestId,
-                extra: data.extra,
-            },
-        });
-        reply.status(201).send(newLog);
-    }
-    catch (error) {
-        server.log.error(error, 'Failed to create log entry');
-        reply.status(500).send({ error: 'Internal Server Error' });
-    }
-});
-// 21. Delete Skill by ID
-server.delete('/api/skills/:id', async (request, reply) => {
-    const { id } = request.params;
-    try {
-        await prisma_1.prisma.skill.delete({ where: { id } });
-        reply.status(204).send();
-    }
-    catch (error) {
-        if (error instanceof Error && 'code' in error && error.code === 'P2025') {
-            return reply.status(404).send({ error: 'Skill not found' });
-        }
-        server.log.error(error, `Failed to delete skill ${id}`);
-        reply.status(500).send({ error: 'Internal Server Error' });
-    }
-});
-// 16. Delete Run by ID
-server.delete('/api/runs/:id', async (request, reply) => {
-    const { id } = request.params;
-    try {
-        await prisma_1.prisma.run.delete({ where: { id } });
-        reply.status(204).send();
-    }
-    catch (error) {
-        if (error instanceof Error && 'code' in error && error.code === 'P2025') {
-            return reply.status(404).send({ error: 'Run not found' });
-        }
-        server.log.error(error, `Failed to delete run ${id}`);
-        reply.status(500).send({ error: 'Internal Server Error' });
-    }
-});
-// 13. Create a new Run
-server.post('/api/runs', async (request, reply) => {
-    const data = request.body; // TODO: Validation
-    try {
-        // Note: In a real app, creating a run would likely trigger other events
-        const newRun = await prisma_1.prisma.run.create({
-            data: {
-                source: data.source,
-                label: data.label,
-                status: data.status || 'queued',
-                model: data.model,
-            },
-        });
-        reply.status(201).send(newRun);
-    }
-    catch (error) {
-        server.log.error(error, 'Failed to create run');
-        reply.status(500).send({ error: 'Internal Server Error' });
-    }
-});
-// 11. Delete Session by ID
-server.delete('/api/sessions/:id', async (request, reply) => {
-    const { id } = request.params;
-    try {
-        await prisma_1.prisma.session.delete({ where: { id } });
-        reply.status(204).send();
-    }
-    catch (error) {
-        if (error instanceof Error && 'code' in error && error.code === 'P2025') {
-            return reply.status(404).send({ error: 'Session not found' });
-        }
-        server.log.error(error, `Failed to delete session ${id}`);
-        reply.status(500).send({ error: 'Internal Server Error' });
-    }
-});
-// 8. Create a new Session
-server.post('/api/sessions', async (request, reply) => {
-    const data = request.body; // TODO: Validation
-    try {
-        const newSession = await prisma_1.prisma.session.create({
-            data: {
-                status: data.status || 'active',
-                model: data.model,
-                agentName: data.agentName,
-            },
-        });
-        reply.status(201).send(newSession);
-    }
-    catch (error) {
-        server.log.error(error, 'Failed to create session');
-        reply.status(500).send({ error: 'Internal Server Error' });
-    }
-});
-// 6. Delete Agent by ID Route
-server.delete('/api/agents/:id', async (request, reply) => {
-    const { id } = request.params;
-    try {
-        await prisma_1.prisma.agent.delete({
-            where: { id },
-        });
-        reply.status(204).send();
-    }
-    catch (error) {
-        // Handle case where the agent to delete doesn't exist
-        if (error instanceof Error && 'code' in error && error.code === 'P2025') {
-            return reply.status(404).send({ error: 'Agent not found' });
-        }
-        server.log.error(error, `Failed to delete agent ${id}`);
-        reply.status(500).send({ error: 'Internal Server Error' });
-    }
-});
-// 5. Update Agent by ID Route
-server.put('/api/agents/:id', async (request, reply) => {
-    const { id } = request.params;
-    const data = request.body; // TODO: Add validation
-    try {
-        const updatedAgent = await prisma_1.prisma.agent.update({
-            where: { id },
-            data: {
-                name: data.name,
-                type: data.type,
-                model: data.model,
-                provider: data.provider,
-                status: data.status,
-                description: data.description,
-                tools: data.tools,
-                // We don't update calculated fields like runs24h here
-            },
-        });
-        return updatedAgent;
-    }
-    catch (error) {
-        // Handle case where the agent to update doesn't exist
-        if (error instanceof Error && 'code' in error && error.code === 'P2025') {
-            return reply.status(404).send({ error: 'Agent not found' });
-        }
-        server.log.error(error, `Failed to update agent ${id}`);
-        reply.status(500).send({ error: 'Internal Server Error' });
-    }
-});
-// 4. Get Agent by ID Route
-server.get('/api/agents/:id', async (request, reply) => {
-    const { id } = request.params;
-    try {
-        const agent = await prisma_1.prisma.agent.findUnique({
-            where: { id },
-        });
-        if (!agent) {
-            return reply.status(404).send({ error: 'Agent not found' });
-        }
-        return agent;
-    }
-    catch (error) {
-        server.log.error(error, `Failed to fetch agent ${id}`);
-        reply.status(500).send({ error: 'Internal Server Error' });
-    }
-});
-// 3. Create Agent Route
-server.post('/api/agents', async (request, reply) => {
-    // TODO: Add validation for the request body
-    const data = request.body;
-    try {
-        const newAgent = await prisma_1.prisma.agent.create({
-            data: {
-                name: data.name,
-                type: data.type,
-                model: data.model,
-                provider: data.provider,
-                status: data.status || 'idle',
-                description: data.description,
-                tools: data.tools || [],
-            },
-        });
-        reply.status(201).send(newAgent);
-    }
-    catch (error) {
-        server.log.error(error, 'Failed to create agent');
-        reply.status(500).send({ error: 'Internal Server Error' });
-    }
-});
-// --- Server Start ---
+// =============================================================================
+// Server Start
+// =============================================================================
 const start = async () => {
     try {
-        // Use Railway's PORT variable, fall back to API_PORT, then default to 8080
-        const port = parseInt(process.env.PORT || process.env.API_PORT || '8080', 10);
-        await server.listen({ port: port, host: '0.0.0.0' });
-        server.log.info(`Server listening on port ${port}`);
+        const port = parseInt(process.env.PORT || '8080', 10);
+        await server.listen({ port, host: '0.0.0.0' });
+        server.log.info(`OpenClaw Dashboard API listening on port ${port}`);
+        server.log.info(`Reading from: ${process.env.OPENCLAW_DIR || '/home/clawd/.openclaw'}`);
+        server.log.info(`Webhook secret: ${CONFIG.webhookSecret.slice(0, 4)}...`);
+        server.log.info(`Polling interval: ${CONFIG.pollingIntervalMs}ms`);
     }
     catch (err) {
         server.log.error(err);
