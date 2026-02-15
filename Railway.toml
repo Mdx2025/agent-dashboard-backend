@@ -1,5 +1,5 @@
 [build]
-builder = "NIXPACKS"
+builder = "NIXPACKS-V2"
 
 [build.env]
 NODE_ENV = "production"
