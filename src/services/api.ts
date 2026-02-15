@@ -2,7 +2,7 @@
 
 // Base URL for the backend API
 // In development, use localhost. In production, use the Railway-provided environment variable.
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api';
+const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080') + '/api';
 
 /**
  * A simple wrapper around fetch for making API calls.
