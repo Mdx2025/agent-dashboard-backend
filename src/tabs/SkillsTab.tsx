@@ -83,7 +83,7 @@ export function SkillsTab() {
   if (error) return <div className="p-4" style={{ color: 'red' }}>Error: {error}</div>;
 
   return (
-    <div className="p-4">
+    <div className="p-6">
       <h1 className="text-2xl font-bold mb-4">Skills</h1>
       <p className="mb-6 text-gray-600">Manage and monitor your agent skills.</p>
       
@@ -129,9 +129,9 @@ export function SkillsTab() {
       </div>
 
       {/* Skills List */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {skills.map((skill) => (
-          <div key={skill.id} className="border rounded p-4 shadow-md">
+          <div key={skill.id} className="border rounded-xl p-6 shadow-md">
             <div className="flex justify-between items-start mb-2">
               <h3 className="text-lg font-semibold">{skill.name}</h3>
               <div className="flex space-x-1">

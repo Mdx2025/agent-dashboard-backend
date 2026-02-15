@@ -77,7 +77,7 @@ export function AgentsTab() {
   });
 
   return (
-    <div className="p-4">
+    <div className="p-6">
       <h1 className="text-2xl font-bold mb-4">Agents</h1>
       <p className="mb-4">All registered agents and subagents with performance metrics.</p>
       
@@ -119,9 +119,9 @@ export function AgentsTab() {
         Create New Agent
       </button>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {filteredAgents.map((agent) => (
-          <div key={agent.id} className="p-4 border rounded shadow-md">
+          <div key={agent.id} className="p-6 border rounded-lg shadow-md">
             <h2 className="text-xl font-semibold">{agent.name} <span className="text-sm text-gray-500">({agent.type})</span></h2>
             <p className="text-sm text-gray-600 mb-2">{agent.description}</p>
             <p><strong>Status:</strong> {agent.status}</p>

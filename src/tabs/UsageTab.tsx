@@ -53,7 +53,7 @@ export function UsageTab() {
     : 0;
 
   return (
-    <div className="p-4">
+    <div className="p-6">
       <h1 className="text-2xl font-bold mb-4">Usage & Metrics</h1>
       <p className="mb-6 text-gray-600">Detailed metrics on agent usage and system performance.</p>
       
@@ -77,21 +77,21 @@ export function UsageTab() {
         </span>
       </div>
       
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
         {/* Total Tokens In */}
-        <div className="border rounded p-4 shadow-md text-center">
+        <div className="border rounded-xl p-6 shadow-md text-center">
           <h3 className="text-sm font-semibold text-gray-500 uppercase">Total Tokens In</h3>
           <p className="text-3xl font-bold text-blue-600 mt-2">{totalTokensIn.toLocaleString()}</p>
         </div>
 
         {/* Total Tokens Out */}
-        <div className="border rounded p-4 shadow-md text-center">
+        <div className="border rounded-xl p-6 shadow-md text-center">
           <h3 className="text-sm font-semibold text-gray-500 uppercase">Total Tokens Out</h3>
           <p className="text-3xl font-bold text-green-600 mt-2">{totalTokensOut.toLocaleString()}</p>
         </div>
 
         {/* Avg Context Usage */}
-        <div className="border rounded p-4 shadow-md text-center">
+        <div className="border rounded-xl p-6 shadow-md text-center">
           <h3 className="text-sm font-semibold text-gray-500 uppercase">Avg Context Usage</h3>
           <p className="text-3xl font-bold text-purple-600 mt-2">{avgContextPct}%</p>
         </div>
@@ -99,7 +99,7 @@ export function UsageTab() {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Top Agents by Runs */}
-        <div className="border rounded p-4 shadow-md">
+        <div className="border rounded-xl p-6 shadow-md">
           <h2 className="text-xl font-semibold mb-4">Agents (24h Runs)</h2>
           {agents.length === 0 ? (
             <p>No agents found.</p>
@@ -131,7 +131,7 @@ export function UsageTab() {
         </div>
 
         {/* Runs by Status */}
-        <div className="border rounded p-4 shadow-md">
+        <div className="border rounded-xl p-6 shadow-md">
           <h2 className="text-xl font-semibold mb-4">Runs by Status</h2>
           {runs.length === 0 ? (
             <p>No runs found.</p>
@@ -165,7 +165,7 @@ export function UsageTab() {
       </div>
 
       {/* Recent Sessions Table */}
-      <div className="mt-6 border rounded p-4 shadow-md">
+      <div className="mt-6 border rounded-xl p-6 shadow-md">
         <h2 className="text-xl font-semibold mb-4">Recent Sessions</h2>
         {sessions.length === 0 ? (
           <p>No sessions found.</p>

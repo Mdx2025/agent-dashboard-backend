@@ -34,7 +34,7 @@ export function HealthTab() {
   if (error) return <div className="p-4" style={{ color: 'red' }}>Error: {error}</div>;
 
   return (
-    <div className="p-4">
+    <div className="p-6">
       <h1 className="text-2xl font-bold mb-4">Health & Services</h1>
       <p className="mb-6 text-gray-600">System health checks and service status.</p>
       
@@ -43,11 +43,11 @@ export function HealthTab() {
         <div>
           <h2 className="text-xl font-semibold mb-4">Services</h2>
           {services.length === 0 ? (
-            <div className="border rounded p-4 shadow-md">No services found.</div>
+            <div className="border rounded-xl p-6 shadow-md">No services found.</div>
           ) : (
-            <div className="space-y-3">
+            <div className="space-y-4">
               {services.map((service) => (
-                <div key={service.name} className="border rounded p-4 shadow-md">
+                <div key={service.name} className="border rounded-xl p-6 shadow-md">
                   <div className="flex justify-between items-center mb-2">
                     <h3 className="text-lg font-medium">{service.name}</h3>
                     <span className={`px-2 py-1 rounded text-sm font-semibold ${

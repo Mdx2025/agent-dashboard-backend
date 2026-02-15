@@ -37,27 +37,27 @@ export function OverviewTab() {
   if (error) return <div className="p-4" style={{ color: 'red' }}>Error: {error}</div>;
 
   return (
-    <div className="p-4">
+    <div className="p-6">
       <h1 className="text-2xl font-bold mb-4">Overview</h1>
       <p className="mb-6 text-gray-600">Real-time agent operations monitoring</p>
       
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
         {/* Agents Summary */}
-        <div className="p-4 border rounded shadow-md">
+        <div className="p-6 border rounded-xl shadow-md">
           <h2 className="text-xl font-semibold mb-2">Agents</h2>
           <p className="text-4xl font-bold mb-2">{agents.length}</p>
           <p className="text-sm text-gray-500">Total registered agents</p>
         </div>
 
         {/* Sessions Summary */}
-        <div className="p-4 border rounded shadow-md">
+        <div className="p-6 border rounded-xl shadow-md">
           <h2 className="text-xl font-semibold mb-2">Active Sessions</h2>
           <p className="text-4xl font-bold mb-2">{sessions.filter(s => s.status === 'active').length}</p>
           <p className="text-sm text-gray-500">Currently active sessions</p>
         </div>
 
         {/* Runs Summary */}
-        <div className="p-4 border rounded shadow-md">
+        <div className="p-6 border rounded-xl shadow-md">
           <h2 className="text-xl font-semibold mb-2">Runs (24h)</h2>
           <p className="text-4xl font-bold mb-2">{runs.length}</p>
           <p className="text-sm text-gray-500">Total runs tracked</p>
@@ -66,7 +66,7 @@ export function OverviewTab() {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Recent Agents */}
-        <div className="border rounded p-4 shadow-md">
+        <div className="border rounded-xl p-6 shadow-md">
           <h2 className="text-xl font-semibold mb-4">Recent Agents</h2>
           {agents.length === 0 ? (
             <p>No agents found.</p>
@@ -88,7 +88,7 @@ export function OverviewTab() {
         </div>
 
         {/* Recent Runs */}
-        <div className="border rounded p-4 shadow-md">
+        <div className="border rounded-xl p-6 shadow-md">
           <h2 className="text-xl font-semibold mb-4">Recent Runs</h2>
           {runs.length === 0 ? (
             <p>No runs found.</p>
