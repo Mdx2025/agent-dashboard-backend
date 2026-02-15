@@ -1,7 +1,7 @@
 import Fastify from 'fastify';
 import cors from '@fastify/cors';
-import fastifyStatic from '@fastify/static';
 import { PrismaClient } from '@prisma/client';
+import fs from 'fs';
 import path from 'path';
 
 const server = Fastify({ logger: true });
@@ -9,12 +9,42 @@ const prisma = new PrismaClient();
 
 server.register(cors, { origin: true });
 
-// Serve static frontend files
-server.register(fastifyStatic, {
-  root: path.join(process.cwd(), 'frontend'),
-  prefix: '/',
-  wildcard: false,
-  index: ['index.html'],
+// Simple static file serving
+server.addHook('onRequest', async (request, reply) => {
+  const urlPath = request.url.split('?')[0];
+  
+  // Only serve static files for GET requests to non-API paths
+  if (request.method !== 'GET' || urlPath.startsWith('/api')) {
+    return;
+  }
+  
+  // Map URL to file path
+  let filePath = urlPath === '/' ? '/index.html' : urlPath;
+  const fullPath = path.join(process.cwd(), 'frontend', filePath);
+  
+  // Security: prevent directory traversal
+  if (!fullPath.startsWith(path.join(process.cwd(), 'frontend'))) {
+    return reply.code(403).send('Forbidden');
+  }
+  
+  // Check if file exists
+  if (fs.existsSync(fullPath) && fs.statSync(fullPath).isFile()) {
+    const ext = path.extname(fullPath);
+    const contentTypes: Record<string, string> = {
+      '.html': 'text/html',
+      '.js': 'application/javascript',
+      '.css': 'text/css',
+      '.json': 'application/json',
+      '.png': 'image/png',
+      '.jpg': 'image/jpeg',
+      '.svg': 'image/svg+xml',
+    };
+    
+    const contentType = contentTypes[ext] || 'application/octet-stream';
+    const content = fs.readFileSync(fullPath);
+    
+    return reply.type(contentType).send(content);
+  }
 });
 
 // Health check

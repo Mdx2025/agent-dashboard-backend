@@ -5,18 +5,42 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 const fastify_1 = __importDefault(require("fastify"));
 const cors_1 = __importDefault(require("@fastify/cors"));
-const static_1 = __importDefault(require("@fastify/static"));
 const client_1 = require("@prisma/client");
+const fs_1 = __importDefault(require("fs"));
 const path_1 = __importDefault(require("path"));
 const server = (0, fastify_1.default)({ logger: true });
 const prisma = new client_1.PrismaClient();
 server.register(cors_1.default, { origin: true });
-// Serve static frontend files
-server.register(static_1.default, {
-    root: path_1.default.join(process.cwd(), 'frontend'),
-    prefix: '/',
-    wildcard: false,
-    index: ['index.html'],
+// Simple static file serving
+server.addHook('onRequest', async (request, reply) => {
+    const urlPath = request.url.split('?')[0];
+    // Only serve static files for GET requests to non-API paths
+    if (request.method !== 'GET' || urlPath.startsWith('/api')) {
+        return;
+    }
+    // Map URL to file path
+    let filePath = urlPath === '/' ? '/index.html' : urlPath;
+    const fullPath = path_1.default.join(process.cwd(), 'frontend', filePath);
+    // Security: prevent directory traversal
+    if (!fullPath.startsWith(path_1.default.join(process.cwd(), 'frontend'))) {
+        return reply.code(403).send('Forbidden');
+    }
+    // Check if file exists
+    if (fs_1.default.existsSync(fullPath) && fs_1.default.statSync(fullPath).isFile()) {
+        const ext = path_1.default.extname(fullPath);
+        const contentTypes = {
+            '.html': 'text/html',
+            '.js': 'application/javascript',
+            '.css': 'text/css',
+            '.json': 'application/json',
+            '.png': 'image/png',
+            '.jpg': 'image/jpeg',
+            '.svg': 'image/svg+xml',
+        };
+        const contentType = contentTypes[ext] || 'application/octet-stream';
+        const content = fs_1.default.readFileSync(fullPath);
+        return reply.type(contentType).send(content);
+    }
 });
 // Health check
 server.get('/api/health', async () => {
