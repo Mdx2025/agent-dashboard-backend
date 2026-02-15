@@ -4,13 +4,7 @@
 builder = "NIXPACKS"
 
 [deploy]
-# Build the project, generate Prisma client, run migrations, and start the server
-# Note: migrate reset will DROP and RECREATE all tables (data will be lost)
-# Change back to "npx prisma migrate deploy" after database is working
-startCommand = "npm run build && npm run prisma:generate && npx prisma migrate reset --force --skip-generate && npm start"
-healthcheckPath = "/health"
+# Build and start the server (no Prisma/database needed)
+startCommand = "npm run build && npm start"
+healthcheckPath = "/api/health"
 healthcheckTimeout = 30000
-
-[variables]
-# This will be automatically set by Railway when you add a PostgreSQL service
-DATABASE_URL = ""
