@@ -6,7 +6,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// API proxy - forward /api requests to backend
+// API proxy - forward /api requests to backend (MUST be before static files)
 app.use('/api', async (req, res) => {
   const backendUrl = process.env.VITE_API_BASE_URL || 'https://agent-dashboard-backend-production.up.railway.app/api';
   try {
@@ -16,12 +16,13 @@ app.use('/api', async (req, res) => {
         ...req.headers,
         host: undefined,
       },
-      body: req.method !== 'GET' && req.method !== 'HEAD' ? req : undefined,
     });
     
     res.status(response.status);
     response.headers.forEach((value, key) => {
-      res.setHeader(key, value);
+      if (key.toLowerCase() !== 'content-encoding') {
+        res.setHeader(key, value);
+      }
     });
     
     const data = await response.text();
