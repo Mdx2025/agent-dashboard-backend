@@ -5,63 +5,222 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 const fastify_1 = __importDefault(require("fastify"));
 const cors_1 = __importDefault(require("@fastify/cors"));
+const client_1 = require("@prisma/client");
 const server = (0, fastify_1.default)({ logger: true });
+const prisma = new client_1.PrismaClient();
 server.register(cors_1.default, { origin: true });
+// Health check
 server.get('/api/health', async () => {
-    return { status: 'ok', timestamp: Date.now() };
+    try {
+        await prisma.$queryRaw `SELECT 1`;
+        return { status: 'ok', timestamp: Date.now(), db: 'connected' };
+    }
+    catch (e) {
+        return { status: 'ok', timestamp: Date.now(), db: 'disconnected' };
+    }
 });
+// Get all agents
 server.get('/api/agents', async () => {
-    return [
-        { id: 'main', name: 'Main', status: 'active', type: 'MAIN', provider: 'MiniMax', model: 'MiniMax-M2.5', description: 'Main agent', runs24h: 45, err24h: 1, costDay: 3.2 },
-        { id: 'coder', name: 'Coder', status: 'active', type: 'SUBAGENT', provider: 'MiniMax', model: 'MiniMax-M2.5', description: 'Code writing agent', runs24h: 32, err24h: 0, costDay: 2.1 },
-        { id: 'researcher', name: 'Researcher', status: 'active', type: 'SUBAGENT', provider: 'MiniMax', model: 'MiniMax-M2.5', description: 'Research agent', runs24h: 28, err24h: 0, costDay: 1.8 },
-        { id: 'writer', name: 'Writer', status: 'active', type: 'SUBAGENT', provider: 'MiniMax', model: 'MiniMax-M2.5', description: 'Content writer', runs24h: 15, err24h: 0, costDay: 0.9 },
-        { id: 'support', name: 'Support', status: 'active', type: 'SUBAGENT', provider: 'MiniMax', model: 'MiniMax-M2.5', description: 'Support agent', runs24h: 22, err24h: 0, costDay: 1.5 },
-        { id: 'heartbeat', name: 'Heartbeat', status: 'active', type: 'SUBAGENT', provider: 'MiniMax', model: 'MiniMax-M2.5', description: 'Cron scheduler', runs24h: 18, err24h: 0, costDay: 0.4 },
-        { id: 'reasoning', name: 'Reasoning', status: 'idle', type: 'SUBAGENT', provider: 'MiniMax', model: 'MiniMax-M2.5', description: 'Deep reasoning', runs24h: 8, err24h: 0, costDay: 0.3 },
-        { id: 'clawma', name: 'Clawma', status: 'idle', type: 'SUBAGENT', provider: 'MiniMax', model: 'MiniMax-M2.5', description: 'Cost-optimized tasks', runs24h: 12, err24h: 0, costDay: 0.6 },
-    ];
+    const agents = await prisma.agent.findMany({
+        orderBy: { name: 'asc' }
+    });
+    return agents.map(a => ({
+        id: a.id,
+        name: a.name,
+        status: a.status,
+        type: a.type,
+        provider: a.provider,
+        model: a.model,
+        description: a.description,
+        runs24h: a.runs24h,
+        err24h: a.err24h,
+        costDay: a.costDay,
+        runsAll: a.runsAll,
+        tokensIn24h: a.tokensIn24h,
+        tokensOut24h: a.tokensOut24h,
+        costAll: a.costAll,
+        latencyAvg: a.latencyAvg,
+        uptime: a.uptime,
+    }));
 });
+// Get all sessions
 server.get('/api/sessions', async () => {
-    return [
-        { id: 'sess_main', status: 'active', agent: 'main', model: 'MiniMax-M2.5', tokens24h: 45000 },
-        { id: 'sess_coder', status: 'active', agent: 'coder', model: 'MiniMax-M2.5', tokens24h: 23000 },
-        { id: 'sess_researcher', status: 'idle', agent: 'researcher', model: 'MiniMax-M2.5', tokens24h: 12000 },
-    ];
+    const sessions = await prisma.session.findMany({
+        orderBy: { lastSeenAt: 'desc' },
+        take: 50
+    });
+    return sessions.map(s => ({
+        id: s.id,
+        status: s.status,
+        agent: s.agentName,
+        model: s.model,
+        tokens24h: s.tokens24h,
+        startedAt: s.startedAt.getTime(),
+        lastSeenAt: s.lastSeenAt.getTime(),
+    }));
 });
+// Get all runs
 server.get('/api/runs', async () => {
-    return [
-        { id: 'run_1', source: 'MAIN', label: 'User request', status: 'running', model: 'MiniMax-M2.5', ctxAvg: 45, tokIn: 1200, tokOut: 340, startedAt: Date.now() - 30000 },
-        { id: 'run_2', source: 'SUBAGENT', label: 'Code review', status: 'finished', model: 'MiniMax-M2.5', ctxAvg: 62, tokIn: 8900, tokOut: 2100, startedAt: Date.now() - 120000 },
-    ];
+    const runs = await prisma.run.findMany({
+        orderBy: { startedAt: 'desc' },
+        take: 50
+    });
+    return runs.map(r => ({
+        id: r.id,
+        source: r.source,
+        label: r.label,
+        status: r.status,
+        model: r.model,
+        contextPct: r.contextPct,
+        tokensIn: r.tokensIn,
+        tokensOut: r.tokensOut,
+        startedAt: r.startedAt.getTime(),
+        duration: r.duration,
+    }));
 });
+// Get all skills
 server.get('/api/skills', async () => {
-    return [
-        { id: 'sk1', name: 'Web Search', ver: '2.4.1', cat: 'Research', on: true, status: 'ok', use24h: 234, latAvg: 420, errRate: 0.2 },
-        { id: 'sk2', name: 'File Ops', ver: '3.1.0', cat: 'System', on: true, status: 'ok', use24h: 189, latAvg: 45, errRate: 0.1 },
-        { id: 'sk3', name: 'Shell', ver: '1.8.2', cat: 'System', on: true, status: 'warn', use24h: 78, latAvg: 890, errRate: 1.8 },
-    ];
+    const skills = await prisma.skill.findMany({
+        orderBy: { name: 'asc' }
+    });
+    return skills.map(s => ({
+        id: s.id,
+        name: s.name,
+        version: s.version,
+        category: s.category,
+        enabled: s.enabled,
+        status: s.status,
+        description: s.description,
+        usage24h: s.usage24h,
+        latencyAvg: s.latencyAvg,
+        errorRate: s.errorRate,
+    }));
 });
+// Get all services
 server.get('/api/services', async () => {
-    return [
-        { name: 'Gateway', status: 'healthy', latencyMs: 12, cpuPct: 23, memPct: 45 },
-        { name: 'Database', status: 'healthy', latencyMs: 8, cpuPct: 18, memPct: 52 },
-        { name: 'Cache', status: 'healthy', latencyMs: 1, cpuPct: 5, memPct: 28 },
-    ];
+    const services = await prisma.service.findMany({
+        orderBy: { name: 'asc' }
+    });
+    return services.map(s => ({
+        name: s.name,
+        status: s.status,
+        host: s.host,
+        port: s.port,
+        latencyMs: s.latencyMs,
+        cpuPct: s.cpuPct,
+        memPct: s.memPct,
+        version: s.version,
+    }));
 });
+// Get logs
 server.get('/api/logs', async () => {
-    return [
-        { id: 'log1', timestamp: Date.now() - 5000, level: 'INFO', source: 'gateway', message: 'Request processed' },
-        { id: 'log2', timestamp: Date.now() - 10000, level: 'DEBUG', source: 'main', message: 'Context loaded' },
-        { id: 'log3', timestamp: Date.now() - 15000, level: 'INFO', source: 'coder', message: 'Code generated' },
-    ];
+    const logs = await prisma.logEntry.findMany({
+        orderBy: { timestamp: 'desc' },
+        take: 100
+    });
+    return logs.map(l => ({
+        id: l.id,
+        timestamp: l.timestamp.getTime(),
+        level: l.level,
+        source: l.source,
+        message: l.message,
+    }));
+});
+// Sync endpoint - for internal use to populate DB
+server.post('/api/sync', async (request, reply) => {
+    const { agents, sessions, runs, skills, services, logs } = request.body;
+    try {
+        if (agents) {
+            for (const a of agents) {
+                await prisma.agent.upsert({
+                    where: { id: a.id },
+                    update: a,
+                    create: a,
+                });
+            }
+        }
+        if (sessions) {
+            for (const s of sessions) {
+                await prisma.session.upsert({
+                    where: { id: s.id },
+                    update: s,
+                    create: s,
+                });
+            }
+        }
+        if (runs) {
+            for (const r of runs) {
+                await prisma.run.upsert({
+                    where: { id: r.id },
+                    update: r,
+                    create: r,
+                });
+            }
+        }
+        if (skills) {
+            for (const s of skills) {
+                await prisma.skill.upsert({
+                    where: { id: s.id },
+                    update: s,
+                    create: s,
+                });
+            }
+        }
+        if (services) {
+            for (const s of services) {
+                await prisma.service.upsert({
+                    where: { id: s.id },
+                    update: s,
+                    create: s,
+                });
+            }
+        }
+        if (logs) {
+            for (const l of logs) {
+                await prisma.logEntry.create({ data: l });
+            }
+        }
+        return { status: 'ok', message: 'Sync completed' };
+    }
+    catch (e) {
+        reply.code(500);
+        return { status: 'error', message: e.message };
+    }
 });
 const PORT = process.env.PORT || 3000;
-server.listen({ port: Number(PORT), host: '0.0.0.0' }, (err, address) => {
+server.listen({ port: Number(PORT), host: '0.0.0.0' }, async (err, address) => {
     if (err) {
         server.log.error(err);
         process.exit(1);
     }
     console.log('Server on ' + address);
+    // Seed initial data if DB is empty
+    try {
+        const agentCount = await prisma.agent.count();
+        if (agentCount === 0) {
+            console.log('Seeding initial data...');
+            await prisma.agent.createMany({
+                data: [
+                    { id: 'main', name: 'Main', type: 'MAIN', status: 'active', provider: 'MiniMax', model: 'MiniMax-M2.5', description: 'Main agent' },
+                    { id: 'coder', name: 'Coder', type: 'SUBAGENT', status: 'active', provider: 'MiniMax', model: 'MiniMax-M2.5', description: 'Code writing agent' },
+                    { id: 'researcher', name: 'Researcher', type: 'SUBAGENT', status: 'active', provider: 'MiniMax', model: 'MiniMax-M2.5', description: 'Research agent' },
+                    { id: 'writer', name: 'Writer', type: 'SUBAGENT', status: 'active', provider: 'MiniMax', model: 'MiniMax-M2.5', description: 'Content writer agent' },
+                    { id: 'support', name: 'Support', type: 'SUBAGENT', status: 'active', provider: 'MiniMax', model: 'MiniMax-M2.5', description: 'Support agent' },
+                    { id: 'heartbeat', name: 'Heartbeat', type: 'SUBAGENT', status: 'active', provider: 'MiniMax', model: 'MiniMax-M2.5', description: 'Cron scheduler' },
+                    { id: 'reasoning', name: 'Reasoning', type: 'SUBAGENT', status: 'idle', provider: 'MiniMax', model: 'MiniMax-M2.5', description: 'Deep reasoning' },
+                    { id: 'clawma', name: 'Clawma', type: 'SUBAGENT', status: 'idle', provider: 'MiniMax', model: 'MiniMax-M2.5', description: 'Cost-optimized tasks' },
+                ]
+            });
+            console.log('Initial agents seeded');
+        }
+    }
+    catch (e) {
+        console.error('Error seeding data:', e);
+    }
+});
+// Graceful shutdown
+process.on('SIGTERM', async () => {
+    await prisma.$disconnect();
+    process.exit(0);
 });
 //# sourceMappingURL=server.js.map

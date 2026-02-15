@@ -4,7 +4,10 @@
 builder = "NIXPACKS"
 
 [deploy]
-# Build and start the server (no Prisma/database needed)
-startCommand = "npm run build && npm start"
+# Build the project, generate Prisma client, run migrations, and start the server
+startCommand = "npm run build && npm run prisma:generate && npx prisma migrate deploy && npm start"
 healthcheckPath = "/api/health"
 healthcheckTimeout = 30000
+
+[variables]
+# DATABASE_URL will be automatically set when you add a PostgreSQL service
