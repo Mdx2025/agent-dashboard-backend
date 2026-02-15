@@ -1,3 +1,4 @@
+console.log("v2");
 import { useState, useEffect, useRef } from "react";
 
 const C = {
@@ -804,3 +805,4 @@ export default function MDXDashboard() {
 }
 // Force redeploy Sun Feb 15 19:12:00 UTC 2026
 // Tabs fix Sun Feb 15 19:19:40 UTC 2026
+// 1771183624
