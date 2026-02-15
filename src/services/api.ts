@@ -2,6 +2,7 @@
 
 // Base URL for the backend API
 // In development, use localhost. In production, use the Railway-provided environment variable.
+// NOTE: Vite embeds env vars at BUILD time - must rebuild after changing Railway vars
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080') + '/api';
 
 /**
