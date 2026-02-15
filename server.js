@@ -44,3 +44,6 @@ app.listen(PORT, '0.0.0.0', () => {
   console.log(`Server listening on http://0.0.0.0:${PORT}`);
 });
 // Force rebuild Sun Feb 15 19:32:48 UTC 2026
+
+// Test endpoint
+app.get('/test', (req, res) => res.json({test: 'ok'}));
