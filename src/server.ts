@@ -155,19 +155,54 @@ server.get('/api/services', async () => {
   }));
 });
 
-// Get logs
+// Get logs - combine DB logs with recent activity from sessions/runs
 server.get('/api/logs', async () => {
   const logs = await prisma.logEntry.findMany({
     orderBy: { timestamp: 'desc' },
-    take: 100
+    take: 50
   });
-  return logs.map(l => ({
+  
+  // Also get recent sessions and runs to show as activity
+  const sessions = await prisma.session.findMany({
+    orderBy: { lastSeenAt: 'desc' },
+    take: 20
+  });
+  
+  const runs = await prisma.run.findMany({
+    orderBy: { startedAt: 'desc' },
+    take: 30
+  });
+  
+  // Convert sessions to log-like format
+  const sessionLogs = sessions.map(s => ({
+    id: s.id,
+    timestamp: s.lastSeenAt?.getTime() || Date.now(),
+    level: s.status === 'active' ? 'INFO' : 'DEBUG',
+    source: 'session',
+    message: `Session ${s.agentName || 'unknown'}: ${s.status}`,
+  }));
+  
+  // Convert runs to log-like format
+  const runLogs = runs.map(r => ({
+    id: r.id,
+    timestamp: r.startedAt?.getTime() || Date.now(),
+    level: r.status === 'failed' ? 'ERROR' : r.status === 'finished' ? 'INFO' : 'DEBUG',
+    source: 'run',
+    message: `Run ${r.label}: ${r.status}`,
+  }));
+  
+  // Combine and sort by timestamp
+  const allLogs = [...logs.map(l => ({
     id: l.id,
     timestamp: l.timestamp.getTime(),
     level: l.level,
     source: l.source,
     message: l.message,
-  }));
+  })), ...sessionLogs, ...runLogs];
+  
+  return allLogs
+    .sort((a, b) => b.timestamp - a.timestamp)
+    .slice(0, 100);
 });
 
 // Sync endpoint - for internal use to populate DB
