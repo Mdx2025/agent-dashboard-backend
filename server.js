@@ -6,6 +6,31 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+// API proxy - forward /api requests to backend
+app.use('/api', async (req, res) => {
+  const backendUrl = process.env.VITE_API_BASE_URL || 'https://agent-dashboard-backend-production.up.railway.app/api';
+  try {
+    const response = await fetch(`${backendUrl}${req.url}`, {
+      method: req.method,
+      headers: {
+        ...req.headers,
+        host: undefined,
+      },
+      body: req.method !== 'GET' && req.method !== 'HEAD' ? req : undefined,
+    });
+    
+    res.status(response.status);
+    response.headers.forEach((value, key) => {
+      res.setHeader(key, value);
+    });
+    
+    const data = await response.text();
+    res.send(data);
+  } catch (error) {
+    res.status(502).json({ error: 'Backend unavailable' });
+  }
+});
+
 // Serve static files from dist
 app.use(express.static(path.join(__dirname, 'dist')));
 
