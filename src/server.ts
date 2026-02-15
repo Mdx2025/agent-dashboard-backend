@@ -1,45 +1,20 @@
 import Fastify from 'fastify';
 import cors from '@fastify/cors';
+import fastifyStatic from '@fastify/static';
 import { PrismaClient } from '@prisma/client';
+import path from 'path';
 
 const server = Fastify({ logger: true });
 const prisma = new PrismaClient();
 
 server.register(cors, { origin: true });
 
-// Serve static frontend files for non-API routes
-server.setNotFoundHandler(async (request, reply) => {
-  const path = request.url;
-  
-  // Only serve frontend for GET requests to non-API paths
-  if (request.method === 'GET' && !path.startsWith('/api')) {
-    const frontendPaths = [
-      '/index.html',
-      '/assets/index-Dof8935Z.js',
-      '/assets/index-CbmkxVv_.css',
-    ];
-    
-    // For root path, serve index.html
-    if (path === '/' || path === '') {
-      return reply.type('text/html').send(`<!DOCTYPE html>
-<html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Agent Operations Dashboard</title>
-    <style>
-      * { margin: 0; padding: 0; box-sizing: border-box; }
-      body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif; background: #0f1419; color: #e7e9ea; }
-    </style>
-    <script type="module" crossorigin src="/assets/index-Dof8935Z.js"></script>
-    <link rel="stylesheet" crossorigin href="/assets/index-CbmkxVv_.css">
-  </head>
-  <div id="root"></div>
-</html>`);
-    }
-  }
-  
-  reply.code(404).send({ error: 'Not found' });
+// Serve static frontend files
+server.register(fastifyStatic, {
+  root: path.join(process.cwd(), 'frontend'),
+  prefix: '/',
+  wildcard: false,
+  index: ['index.html'],
 });
 
 // Health check
