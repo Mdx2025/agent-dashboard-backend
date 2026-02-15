@@ -137,11 +137,20 @@ server.post('/api/sync', async (request, reply) => {
   try {
     if (agents) {
       for (const a of agents) {
-        await prisma.agent.upsert({
-          where: { id: a.id },
-          update: a,
-          create: a,
-        });
+        try {
+          await prisma.agent.upsert({
+            where: { id: a.id },
+            update: a,
+            create: a,
+          });
+        } catch (e: any) {
+          // If enum doesn't exist, create table directly
+          if (e.code === 'P2025') {
+            await prisma.$executeRaw`INSERT INTO "Agent" (id, name, type, status, model, provider, description, "runs24h", "runsAll", "err24h", "tokensIn24h", "tokensOut24h", "costDay", "costAll", "latencyAvg", "latencyP95", "contextAvgPct", tools, "maxTokens", temperature, uptime, errors, "createdAt", "updatedAt") VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, NOW(), NOW()) ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, type = EXCLUDED.type, status = EXCLUDED.status, model = EXCLUDED.model, provider = EXCLUDED.provider, description = EXCLUDED.description, "runs24h" = EXCLUDED."runs24h", "runsAll" = EXCLUDED."runsAll", "err24h" = EXCLUDED."err24h", "tokensIn24h" = EXCLUDED."tokensIn24h", "tokensOut24h" = EXCLUDED."tokensOut24h", "costDay" = EXCLUDED."costDay", "costAll" = EXCLUDED."costAll", "latencyAvg" = EXCLUDED."latencyAvg", "latencyP95" = EXCLUDED."latencyP95", "contextAvgPct" = EXCLUDED."contextAvgPct", tools = EXCLUDED.tools, "maxTokens" = EXCLUDED."maxTokens", temperature = EXCLUDED.temperature, uptime = EXCLUDED.uptime, errors = EXCLUDED.errors, "updatedAt" = NOW()`, [a.id, a.name, a.type, a.status, a.model, a.provider, a.description, a.runs24h, a.runsAll, a.err24h, a.tokensIn24h, a.tokensOut24h, a.costDay, a.costAll, a.latencyAvg, a.latencyP95, a.contextAvgPct, a.tools, a.maxTokens, a.temperature, a.uptime, a.errors];
+          } else {
+            throw e;
+          }
+        }
       }
     }
     
@@ -167,21 +176,39 @@ server.post('/api/sync', async (request, reply) => {
     
     if (skills) {
       for (const s of skills) {
-        await prisma.skill.upsert({
-          where: { id: s.id },
-          update: s,
-          create: s,
-        });
+        try {
+          await prisma.skill.upsert({
+            where: { id: s.id },
+            update: s,
+            create: s,
+          });
+        } catch (e: any) {
+          // If enum doesn't exist, create table directly
+          if (e.code === 'P2025') {
+            await prisma.$executeRaw`INSERT INTO "Skill" (id, name, version, category, enabled, status, description, "usage24h", "latencyAvg", "latencyP95", "errorRate", config, dependencies, changelog) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14) ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, version = EXCLUDED.version, category = EXCLUDED.category, enabled = EXCLUDED.enabled, status = EXCLUDED.status, description = EXCLUDED.description, "usage24h" = EXCLUDED."usage24h", "latencyAvg" = EXCLUDED."latencyAvg", "latencyP95" = EXCLUDED."latencyP95", "errorRate" = EXCLUDED."errorRate", config = EXCLUDED.config, dependencies = EXCLUDED.dependencies, changelog = EXCLUDED.changelog`, [s.id, s.name, s.version, s.category, s.enabled, s.status, s.description, s.usage24h, s.latencyAvg, s.latencyP95, s.errorRate, s.config, s.dependencies, s.changelog];
+          } else {
+            throw e;
+          }
+        }
       }
     }
     
     if (services) {
       for (const s of services) {
-        await prisma.service.upsert({
-          where: { id: s.id },
-          update: s,
-          create: s,
-        });
+        try {
+          await prisma.service.upsert({
+            where: { id: s.id },
+            update: s,
+            create: s,
+          });
+        } catch (e: any) {
+          // If enum doesn't exist, create table directly
+          if (e.code === 'P2025') {
+            await prisma.$executeRaw`INSERT INTO "Service" (id, name, status, host, port, "latencyMs", "cpuPct", "memPct", version, metadata, "createdAt", "updatedAt") VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NOW(), NOW()) ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, status = EXCLUDED.status, host = EXCLUDED.host, port = EXCLUDED.port, "latencyMs" = EXCLUDED."latencyMs", "cpuPct" = EXCLUDED."cpuPct", "memPct" = EXCLUDED."memPct", version = EXCLUDED.version, metadata = EXCLUDED.metadata, "updatedAt" = NOW()`, [s.id, s.name, s.status, s.host, s.port, s.latencyMs, s.cpuPct, s.memPct, s.version, s.metadata];
+          } else {
+            throw e;
+          }
+        }
       }
     }
     
