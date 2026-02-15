@@ -20,7 +20,7 @@
   "author": "Clawd",
   "license": "UNLICENSED",
   "dependencies": {
-    "@fastify/cors": "^11.2.0",
+    "@fastify/cors": "^9.0.1",
     "@prisma/client": "^5.18.0",
     "fastify": "^4.28.0",
     "pg": "^8.12.0",
