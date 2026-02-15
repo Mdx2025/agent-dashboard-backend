@@ -77,77 +77,92 @@ async function getAgents() {
   }
 }
 
-// Read skills from skills directory
+// Read skills from skills directories (both local and global)
 async function getSkills() {
-  try {
-    const skillsDir = '/home/clawd/.openclaw/skills';
-    if (!fs.existsSync(skillsDir)) {
-      return [];
-    }
-    
-    const skillFolders = fs.readdirSync(skillsDir, { withFileTypes: true })
-      .filter(dirent => dirent.isDirectory())
-      .map(dirent => dirent.name);
-    
-    const skills = [];
-    for (const folder of skillFolders) {
-      const skillPath = path.join(skillsDir, folder);
-      const skillId = `sk_${folder.replace(/[^a-zA-Z0-9]/g, '_')}`;
+  const allSkills = [];
+  
+  // Check local skills directory first
+  const localSkillsDir = '/home/clawd/.openclaw/skills';
+  const globalSkillsDir = '/home/clawd/.local/share/pnpm/global/5/.pnpm/openclaw@2026.2.12_@napi-rs+canvas@0.1.92_@types+express@5.0.6_hono@4.11.9_node-llama-cpp@3.15.1_signal-polyfill@0.2.2/node_modules/openclaw/skills';
+  
+  const dirsToCheck = [];
+  if (fs.existsSync(localSkillsDir)) dirsToCheck.push(localSkillsDir);
+  if (fs.existsSync(globalSkillsDir)) dirsToCheck.push(globalSkillsDir);
+  
+  for (const skillsDir of dirsToCheck) {
+    try {
+      const skillFolders = fs.readdirSync(skillsDir, { withFileTypes: true })
+        .filter(dirent => dirent.isDirectory())
+        .map(dirent => dirent.name);
       
-      let version = '1.0.0';
-      let description = `Skill: ${folder}`;
-      let category = 'General';
-      let status = 'ok';
-      
-      // Try to read package.json
-      const packageJsonPath = path.join(skillPath, 'package.json');
-      if (fs.existsSync(packageJsonPath)) {
-        try {
-          const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf-8'));
-          version = packageJson.version || '1.0.0';
-          description = packageJson.description || description;
-        } catch {}
+      for (const folder of skillFolders) {
+        const skillPath = path.join(skillsDir, folder);
+        const skillId = `sk_${folder.replace(/[^a-zA-Z0-9]/g, '_')}`;
+        
+        let version = '1.0.0';
+        let description = `Skill: ${folder}`;
+        let category = 'General';
+        let status = 'ok';
+        
+        // Try to read package.json
+        const packageJsonPath = path.join(skillPath, 'package.json');
+        if (fs.existsSync(packageJsonPath)) {
+          try {
+            const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf-8'));
+            version = packageJson.version || '1.0.0';
+            description = packageJson.description || description;
+          } catch {}
+        }
+        
+        // Try to read SKILL.md for description and category
+        const skillMdPath = path.join(skillPath, 'SKILL.md');
+        if (fs.existsSync(skillMdPath)) {
+          try {
+            const skillMd = fs.readFileSync(skillMdPath, 'utf-8');
+            const descMatch = skillMd.match(/## Description\s*\n([\s\S]*?)(?=\n##|\n---|$)/);
+            if (descMatch) {
+              description = descMatch[1].trim();
+            }
+            const catMatch = skillMd.match(/## Category\s*\n([\s\S]*?)(?=\n##|\n---|$)/);
+            if (catMatch) {
+              category = catMatch[1].trim();
+            }
+          } catch {}
+        }
+        
+        allSkills.push({
+          id: skillId,
+          name: folder,
+          version,
+          category,
+          enabled: true,
+          status,
+          description: description.substring(0, 100),
+          usage24h: Math.floor(Math.random() * 50),
+          latencyAvg: 100 + Math.random() * 400,
+          latencyP95: 200 + Math.random() * 800,
+          errorRate: Math.random() * 3,
+          config: {},
+          dependencies: [],
+          changelog: [],
+        });
       }
-      
-      // Try to read SKILL.md for description and category
-      const skillMdPath = path.join(skillPath, 'SKILL.md');
-      if (fs.existsSync(skillMdPath)) {
-        try {
-          const skillMd = fs.readFileSync(skillMdPath, 'utf-8');
-          const descMatch = skillMd.match(/## Description\s*\n([\s\S]*?)(?=\n##|\n---|$)/);
-          if (descMatch) {
-            description = descMatch[1].trim();
-          }
-          const catMatch = skillMd.match(/## Category\s*\n([\s\S]*?)(?=\n##|\n---|$)/);
-          if (catMatch) {
-            category = catMatch[1].trim();
-          }
-        } catch {}
-      }
-      
-      skills.push({
-        id: skillId,
-        name: folder,
-        version,
-        category,
-        enabled: true,
-        status,
-        description,
-        usage24h: Math.floor(Math.random() * 100),
-        latencyAvg: Math.random() * 500,
-        latencyP95: Math.random() * 1000,
-        errorRate: Math.random() * 5,
-        config: {},
-        dependencies: [],
-        changelog: [],
-      });
+    } catch (e) {
+      console.error('Error reading skills from', skillsDir, ':', e.message);
     }
-    
-    return skills;
-  } catch (e) {
-    console.error('Error reading skills:', e.message);
-    return [];
   }
+  
+  // Remove duplicates by name
+  const uniqueSkills = [];
+  const seen = new Set();
+  for (const skill of allSkills) {
+    if (!seen.has(skill.name)) {
+      seen.add(skill.name);
+      uniqueSkills.push(skill);
+    }
+  }
+  
+  return uniqueSkills;
 }
 
 // Get services status
@@ -205,35 +220,50 @@ async function getServices() {
 
 // Generate demo sessions and runs with real status
 async function generateDemoData(agents) {
-  // First, get real sessions from the backend to sync their status
+  // Get real sessions from local session files
   let sessions = [];
   let runs = [];
   
   try {
-    const sessionsRes = await fetch(`${BACKEND_URL}/api/sessions`);
-    if (sessionsRes.ok) {
-      const existingSessions = await sessionsRes.json();
-      sessions = existingSessions;
+    const agentsDir = '/home/clawd/.openclaw/agents';
+    const fs = require('fs');
+    const path = require('path');
+    
+    if (fs.existsSync(agentsDir)) {
+      const agentFolders = fs.readdirSync(agentsDir, { withFileTypes: true })
+        .filter(dirent => dirent.isDirectory())
+        .map(dirent => dirent.name);
+      
+      for (const folder of agentFolders) {
+        const sessionsPath = path.join(agentsDir, folder, 'sessions/sessions.json');
+        if (fs.existsSync(sessionsPath)) {
+          try {
+            const sessionsData = JSON.parse(fs.readFileSync(sessionsPath, 'utf-8'));
+            // sessions.json is an object with session IDs as keys
+            const sessionList = Object.values(sessionsData);
+            
+            // Get recent sessions (last 10 per agent)
+            const recentSessions = sessionList.slice(-10).map(s => ({
+              id: s.id || `sess_${Math.random().toString(36).substr(2, 9)}`,
+              status: s.endedAt ? 'idle' : 'active',
+              agent: folder,
+              model: s.model || agents.find(a => a.name === folder)?.model || 'unknown',
+              tokens24h: s.tokensIn24h || s.tokens || 0,
+              startedAt: s.startedAt || Date.now() - 3600000,
+              lastSeenAt: s.lastSeenAt || s.endedAt || Date.now(),
+            }));
+            
+            sessions = [...sessions, ...recentSessions];
+          } catch (e) {
+            // Skip invalid files
+          }
+        }
+      }
     }
+    
+    console.log(`Found ${sessions.length} sessions from local agent files`);
   } catch (e) {
-    console.log('Could not fetch existing sessions');
-  }
-  
-  // If no sessions, generate demo ones
-  if (sessions.length === 0) {
-    // Generate some active sessions
-    for (let i = 0; i < Math.min(agents.length, 3); i++) {
-      const agent = agents[i];
-      sessions.push({
-        id: `sess_${Math.random().toString(36).substr(2, 9)}`,
-        status: i === 0 ? 'active' : 'idle',
-        startedAt: Date.now() - Math.random() * 3600000,
-        lastSeenAt: Date.now() - Math.random() * 60000,
-        tokens24h: Math.floor(Math.random() * 50000),
-        model: agent.model,
-        agent: agent.name,
-      });
-    }
+    console.log('Error reading local sessions:', e.message);
   }
   
   // Generate some runs
