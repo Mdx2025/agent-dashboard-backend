@@ -47,5 +47,6 @@ export default defineConfig({
     // Make sure to use environment variables in .env files
     'import.meta.env.VITE_API_URL': JSON.stringify(process.env.VITE_API_URL),
     'import.meta.env.VITE_WS_URL': JSON.stringify(process.env.VITE_WS_URL),
+    'import.meta.env.VITE_API_BASE_URL': JSON.stringify(process.env.VITE_API_BASE_URL),
   },
 });
