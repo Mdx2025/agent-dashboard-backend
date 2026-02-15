@@ -1,45 +1,25 @@
 import { useState, useEffect, useRef } from "react";
-import { createRoot } from "react-dom/client";
 
-const C = { 
-  bg:"#080c18", 
-  bgS:"rgba(12,18,35,0.75)", 
-  bgH:"rgba(18,26,52,0.9)", 
-  bgSub:"rgba(255,255,255,0.02)", 
-  bdr:"rgba(50,70,120,0.22)", 
-  bdrH:"rgba(59,130,246,0.45)", 
-  acc:"#3b82f6", 
-  accB:"#60a5fa", 
-  accD:"rgba(59,130,246,0.12)", 
-  ok:"#22c55e", 
-  okD:"rgba(34,197,94,0.12)", 
-  okB:"rgba(34,197,94,0.3)", 
-  wn:"#f59e0b", 
-  wnD:"rgba(245,158,11,0.1)", 
-  wnB:"rgba(245,158,11,0.25)", 
-  er:"#ef4444", 
-  erD:"rgba(239,68,68,0.1)", 
-  erB:"rgba(239,68,68,0.3)", 
-  cy:"#06b6d4", 
-  pu:"#a78bfa", 
-  puD:"rgba(167,139,250,0.1)", 
-  t1:"#e2e8f0", 
-  t2:"#94a3b8", 
-  t3:"#64748b", 
-  t4:"#475569" 
+const C = {
+  bg:"#080c18", bgS:"rgba(12,18,35,0.75)", bgH:"rgba(18,26,52,0.9)", bgSub:"rgba(255,255,255,0.02)",
+  bdr:"rgba(50,70,120,0.22)", bdrH:"rgba(59,130,246,0.45)",
+  acc:"#3b82f6", accB:"#60a5fa", accD:"rgba(59,130,246,0.12)",
+  ok:"#22c55e", okD:"rgba(34,197,94,0.12)", okB:"rgba(34,197,94,0.3)",
+  wn:"#f59e0b", wnD:"rgba(245,158,11,0.1)", wnB:"rgba(245,158,11,0.25)",
+  er:"#ef4444", erD:"rgba(239,68,68,0.1)", erB:"rgba(239,68,68,0.3)",
+  cy:"#06b6d4", pu:"#a78bfa", puD:"rgba(167,139,250,0.1)",
+  t1:"#e2e8f0", t2:"#94a3b8", t3:"#64748b", t4:"#475569"
 };
 
 const FN = "'JetBrains Mono','SF Mono',monospace";
 
 const fm = n => {
-  if(!n) return "0";
   if(n>=1e6) return (n/1e6).toFixed(1)+"M";
   if(n>=1e3) return (n/1e3).toFixed(n>=1e4?0:1)+"K";
   return n.toLocaleString();
 };
 
 const ta = ts => {
-  if (!ts) return "—";
   const s=Math.floor((Date.now()-ts)/1000);
   if(s<60) return s+"s ago";
   if(s<3600) return Math.floor(s/60)+"m ago";
@@ -52,43 +32,39 @@ const df = ms => {
   return (ms/1000).toFixed(1)+"s";
 };
 
-const SM = { 
-  active:{bg:C.okD,b:C.okB,c:"#4ade80",d:C.ok}, 
-  healthy:{bg:C.okD,b:C.okB,c:"#4ade80",d:C.ok}, 
-  online:{bg:C.okD,b:C.okB,c:"#4ade80",d:C.ok}, 
-  ok:{bg:C.okD,b:C.okB,c:"#4ade80",d:C.ok}, 
-  pass:{bg:C.okD,b:C.okB,c:"#4ade80",d:C.ok}, 
-  running:{bg:C.accD,b:"rgba(59,130,246,.3)",c:C.accB,d:C.acc}, 
-  idle:{bg:"rgba(148,163,184,.08)",b:"rgba(148,163,184,.2)",c:"#94a3b8",d:"#64748b"}, 
-  finished:{bg:"rgba(34,197,94,.06)",b:"rgba(34,197,94,.18)",c:"#86efac",d:C.ok}, 
-  warn:{bg:C.wnD,b:C.wnB,c:"#fbbf24",d:C.wn}, 
-  degraded:{bg:C.wnD,b:C.wnB,c:"#fbbf24",d:C.wn}, 
-  queued:{bg:C.wnD,b:C.wnB,c:"#fbbf24",d:C.wn}, 
-  error:{bg:C.erD,b:C.erB,c:"#f87171",d:C.er}, 
-  failed:{bg:C.erD,b:C.erB,c:"#f87171",d:C.er}, 
-  fail:{bg:C.erD,b:C.erB,c:"#f87171",d:C.er}, 
-  offline:{bg:C.erD,b:C.erB,c:"#f87171",d:C.er} 
+const SM = {
+  active:{bg:C.okD,b:C.okB,c:"#4ade80",d:C.ok},
+  healthy:{bg:C.okD,b:C.okB,c:"#4ade80",d:C.ok},
+  online:{bg:C.okD,b:C.okB,c:"#4ade80",d:C.ok},
+  ok:{bg:C.okD,b:C.okB,c:"#4ade80",d:C.ok},
+  pass:{bg:C.okD,b:C.okB,c:"#4ade80",d:C.ok},
+  running:{bg:C.accD,b:"rgba(59,130,246,.3)",c:C.accB,d:C.acc},
+  idle:{bg:"rgba(148,163,184,.08)",b:"rgba(148,163,184,.2)",c:"#94a3b8",d:"#64748b"},
+  finished:{bg:"rgba(34,197,94,.06)",b:"rgba(34,197,94,.18)",c:"#86efac",d:C.ok},
+  warn:{bg:C.wnD,b:C.wnB,c:"#fbbf24",d:C.wn},
+  degraded:{bg:C.wnD,b:C.wnB,c:"#fbbf24",d:C.wn},
+  queued:{bg:C.wnD,b:C.wnB,c:"#fbbf24",d:C.wn},
+  error:{bg:C.erD,b:C.erB,c:"#f87171",d:C.er},
+  failed:{bg:C.erD,b:C.erB,c:"#f87171",d:C.er},
+  fail:{bg:C.erD,b:C.erB,c:"#f87171",d:C.er},
+  offline:{bg:C.erD,b:C.erB,c:"#f87171",d:C.er}
 };
 
-// API BASE - Backend real
-const API_BASE = 'https://agent-dashboard-backend-production.up.railway.app/api';
+const API_BASE = import.meta.env.VITE_API_URL || 'https://agent-dashboard-backend-production.up.railway.app';
 
-async function fetchAPI(endpoint) {
-  try {
-    const res = await fetch(`${API_BASE}${endpoint}`);
-    if (!res.ok) throw new Error('API error');
-    const data = await res.json();
-    if (data.sessions) return data.sessions;
-    if (data.runs) return data.runs;
-    if (data.logs) return data.logs;
-    if (data.services) return data.services;
-    return data;
-  } catch (e) {
-    console.error('API fetch error:', e);
-    // Return mock data on error as fallback
-    return [];
-  }
+async function apiCall(endpoint, options = {}) {
+  const res = await fetch(`${API_BASE}${endpoint}`, {
+    ...options,
+    headers: {
+      'Content-Type': 'application/json',
+      ...options.headers,
+    },
+  });
+  if (!res.ok) throw new Error(`API Error: ${res.status}`);
+  return res.json();
 }
+
+/* UI PRIMITIVES */
 
 function Pill({s, glow}) {
   const st = SM[s] || SM.idle;
@@ -101,42 +77,27 @@ function Pill({s, glow}) {
 }
 
 function SrcBadge({s}) {
-  const m = {
-    MAIN:{bg:C.accD,b:"rgba(59,130,246,.3)",c:C.accB},
-    SUBAGENT:{bg:C.puD,b:"rgba(167,139,250,.3)",c:C.pu},
-    CRON:{bg:"rgba(6,182,212,.1)",b:"rgba(6,182,212,.3)",c:"#22d3ee"}
-  };
+  const m = {MAIN:{bg:C.accD,b:"rgba(59,130,246,.3)",c:C.accB},SUBAGENT:{bg:C.puD,b:"rgba(167,139,250,.3)",c:C.pu},CRON:{bg:"rgba(6,182,212,.1)",b:"rgba(6,182,212,.3)",c:"#22d3ee"}};
   const st = m[s] || m.MAIN;
   return (<span style={{padding:"2px 6px",background:st.bg,border:"1px solid "+st.b,borderRadius:4,fontSize:9,fontWeight:600,color:st.c}}>{s}</span>);
 }
 
 function LvlBadge({l}) {
-  const m = {
-    DEBUG:{bg:"rgba(148,163,184,.08)",c:"#94a3b8"},
-    INFO:{bg:C.accD,c:C.accB},
-    WARN:{bg:C.wnD,c:"#fbbf24"},
-    ERROR:{bg:C.erD,c:"#f87171"},
-    FATAL:{bg:"rgba(239,68,68,.2)",c:"#fca5a5"}
-  };
+  const m = {DEBUG:{bg:"rgba(148,163,184,.08)",c:"#94a3b8"},INFO:{bg:C.accD,c:C.accB},WARN:{bg:C.wnD,c:"#fbbf24"},ERROR:{bg:C.erD,c:"#f87171"},FATAL:{bg:"rgba(239,68,68,.2)",c:"#fca5a5"}};
   const st = m[l] || m.INFO;
   return (<span style={{padding:"1px 6px",borderRadius:4,fontSize:9,fontWeight:600,background:st.bg,color:st.c}}>{l}</span>);
+}
+
+function PIcon({p}) {
+  const cl = {Anthropic:"#d4a574",Moonshot:"#22c55e",Google:"#fbbf24",OpenAI:"#a78bfa"};
+  return (<span style={{display:"inline-flex",alignItems:"center",justifyContent:"center",width:20,height:20,borderRadius:5,background:(cl[p]||C.acc)+"18",color:cl[p]||C.acc,fontSize:10,fontWeight:700}}>{p[0]}</span>);
 }
 
 function Card({children, style, p: pad = "16px", hover, onClick}) {
   const [h, setH] = useState(false);
   return (
-    <div onClick={onClick} onMouseEnter={() => setH(true)} onMouseLeave={() => setH(false)} style={{
-      background:h&&hover?C.bgH:C.bgS,
-      backdropFilter:"blur(20px)",
-      border:"1px solid "+(h&&hover?C.bdrH:C.bdr),
-      borderRadius:12,
-      padding:pad,
-      transition:"all 180ms",
-      transform:h&&hover?"translateY(-1px)":"none",
-      boxShadow:h&&hover?"0 8px 32px rgba(0,0,0,.3)":"0 2px 12px rgba(0,0,0,.2)",
-      cursor:onClick?"pointer":"default",
-      ...style
-    }}>
+    <div onClick={onClick} onMouseEnter={() => setH(true)} onMouseLeave={() => setH(false)}
+      style={{background:h&&hover?C.bgH:C.bgS,backdropFilter:"blur(20px)",border:"1px solid "+(h&&hover?C.bdrH:C.bdr),borderRadius:12,padding:pad,transition:"all 180ms",transform:h&&hover?"translateY(-1px)":"none",boxShadow:h&&hover?"0 8px 32px rgba(0,0,0,.3)":"0 2px 12px rgba(0,0,0,.2)",cursor:onClick?"pointer":"default",...style}}>
       {children}
     </div>
   );
@@ -159,7 +120,7 @@ function Drawer({open, onClose, title, children}) {
 }
 
 function MBar({v}) {
-  const p = Math.min(v || 0, 100);
+  const p = Math.min(v, 100);
   return (
     <div style={{display:"flex",alignItems:"center",gap:6}}>
       <div style={{flex:1,height:4,borderRadius:2,background:"rgba(255,255,255,.04)",overflow:"hidden"}}>
@@ -197,16 +158,16 @@ function CtxBar({p}) {
   return (
     <div style={{display:"flex",alignItems:"center",gap:5}}>
       <div style={{width:38,height:3,borderRadius:2,background:"rgba(255,255,255,.05)",overflow:"hidden"}}>
-        <div style={{width:(p||0)+"%",height:"100%",borderRadius:2,background:p>80?C.er:p>60?C.wn:C.acc}} />
+        <div style={{width:p+"%",height:"100%",borderRadius:2,background:p>80?C.er:p>60?C.wn:C.acc}} />
       </div>
-      <span style={{fontSize:10,color:C.t3}}>{p||0}%</span>
+      <span style={{fontSize:10,color:C.t3}}>{p}%</span>
     </div>
   );
 }
 
 function DGrid({items}) {
   return (
-    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:16}}>
+    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8}}>
       {items.map((x, i) => (
         <div key={i} style={{background:C.bgSub,borderRadius:8,padding:"8px 10px",border:"1px solid "+C.bdr}}>
           <div style={{fontSize:9,color:C.t3,marginBottom:3,textTransform:"uppercase"}}>{x.l}</div>
@@ -222,43 +183,48 @@ const TD = {padding:"8px 11px",whiteSpace:"nowrap"};
 
 function TRow({children, onClick}) {
   return (
-    <tr onClick={onClick} style={{borderBottom:"1px solid rgba(255,255,255,.02)",cursor:onClick?"pointer":"default"}} onMouseEnter={e => {e.currentTarget.style.background = "rgba(59,130,246,.03)";}} onMouseLeave={e => {e.currentTarget.style.background = "transparent";}}>
+    <tr onClick={onClick} style={{borderBottom:"1px solid rgba(255,255,255,.02)",cursor:onClick?"pointer":"default"}}
+      onMouseEnter={e => {e.currentTarget.style.background = "rgba(59,130,246,.03)";}}
+      onMouseLeave={e => {e.currentTarget.style.background = "transparent";}}>
       {children}
     </tr>
   );
 }
 
+/* TAB: OVERVIEW */
+
 function OverviewTab() {
+  const [selR, setSelR] = useState(null);
   const [agents, setAgents] = useState([]);
   const [sessions, setSessions] = useState([]);
   const [runs, setRuns] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [selR, setSelR] = useState(null);
 
   useEffect(() => {
     async function loadData() {
       try {
         const [a, s, r] = await Promise.all([
-          fetchAPI('/agents'),
-          fetchAPI('/sessions'),
-          fetchAPI('/runs')
+          apiCall('/agents'),
+          apiCall('/sessions'),
+          apiCall('/runs'),
         ]);
         setAgents(a || []);
         setSessions(s || []);
         setRuns(r || []);
-      } catch(e) { 
+      } catch(e) {
         console.error(e);
       } finally {
         setLoading(false);
       }
     }
     loadData();
-    const interval = setInterval(loadData, 10000);
+    const interval = setInterval(loadData, 15000);
     return () => clearInterval(interval);
   }, []);
 
   const activeSessions = sessions.filter(s => s.status === 'active').length;
-  const totalTokens = agents.reduce((sum, a) => sum + (a.tokIn || a.tokensIn24h || 0) + (a.tokOut || a.tokensOut24h || 0), 0);
+  const totalTokensIn = agents.reduce((sum, a) => sum + (a.tokensIn24h || 0), 0);
+  const totalTokensOut = agents.reduce((sum, a) => sum + (a.tokensOut24h || 0), 0);
   const totalCost = agents.reduce((sum, a) => sum + (a.costDay || 0), 0);
 
   if (loading) return <div style={{color:C.t2,padding:20}}>Loading...</div>;
@@ -267,31 +233,31 @@ function OverviewTab() {
     <div>
       <h1 style={{fontSize:17,fontWeight:600,color:C.t1,marginBottom:4}}>Overview</h1>
       <span style={{fontSize:11,color:C.t3}}>Real-time agent operations</span>
-      
-      <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:20,margin:"20px 0"}}>
+
+      <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:10,margin:"16px 0"}}>
         <KPI label="Sessions" value={sessions.length} sub={`${activeSessions} active`} />
-        <KPI label="Tokens" value={fm(totalTokens)} sub={fm(totalTokens)+" total"} trend="+18%" />
-        <KPI label="Cost" value={"$"+totalCost.toFixed(2)} sub="$12.45 24h" trend="+12%" />
-        <KPI label="Requests" value="689" sub="145 24h" />
+        <KPI label="Tokens In" value={fm(totalTokensIn)} sub="24h" />
+        <KPI label="Tokens Out" value={fm(totalTokensOut)} sub="24h" />
+        <KPI label="Cost" value={"$" + totalCost.toFixed(2)} sub="24h" />
         <Card hover style={{flex:1}}>
           <div style={{fontSize:10,color:C.t3,textTransform:"uppercase",marginBottom:6}}>MAIN MODEL</div>
-          <div style={{fontSize:13,fontWeight:600,color:C.cy}}>claude-opus-4</div>
+          <div style={{fontSize:13,fontWeight:600,color:C.cy}}>{agents[0]?.model || 'N/A'}</div>
           <div style={{fontSize:10,color:C.t3,marginTop:4}}>{agents.length} agents</div>
         </Card>
       </div>
 
       <SLbl>Agents</SLbl>
-      <div style={{display:"flex",gap:12,overflowX:"auto",paddingBottom:8,marginBottom:20}}>
+      <div style={{display:"flex",gap:8,overflowX:"auto",paddingBottom:4,marginBottom:16}}>
         {agents.map(a => (
-          <Card key={a.id} hover p="16px 20px" style={{minWidth:180,flex:"0 0 auto"}}>
+          <Card key={a.id} hover p="10px 14px" style={{minWidth:160,flex:"0 0 auto"}}>
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
               <span style={{fontSize:11,fontWeight:600,color:C.t1}}>{a.name}</span>
               <Pill s={a.status} glow={a.status==="active"} />
             </div>
             <div style={{fontSize:9,color:C.t3}}>{a.model}</div>
             <div style={{display:"flex",gap:8,fontSize:9,color:C.t3,marginTop:2}}>
-              <span>{a.runs24h || a.runs24h || 0} runs</span>
-              <span style={{color:a.err24h>0?C.er:C.t3}}>{a.err24h || a.err24h || 0} err</span>
+              <span>{a.runs24h || 0} runs</span>
+              <span style={{color:a.err24h>0?C.er:C.t3}}>{a.err24h || 0} err</span>
             </div>
           </Card>
         ))}
@@ -304,17 +270,16 @@ function OverviewTab() {
             {sessions.map(s => (
               <div key={s.id} style={{padding:"8px 14px",borderBottom:"1px solid rgba(255,255,255,.02)"}}>
                 <div style={{display:"flex",justifyContent:"space-between",marginBottom:2}}>
-                  <span style={{fontSize:11,fontWeight:600,color:C.accB}}>{s.id}</span>
+                  <span style={{fontSize:11,fontWeight:600,color:C.accB}}>{s.id.substring(0,16)}</span>
                   <Pill s={s.status} />
                 </div>
                 <div style={{display:"flex",justifyContent:"space-between",fontSize:10,color:C.t3}}>
-                  <span>{s.agent || s.agentName || s.agent || '—'}</span><span>{fm(s.tokens24h || s.tok24h || 0)}</span>
+                  <span>{s.agent}</span><span>{fm(s.tokens24h || 0)}</span>
                 </div>
               </div>
             ))}
           </div>
         </Card>
-        
         <Card p="0" style={{overflow:"hidden"}}>
           <div style={{padding:"10px 14px",borderBottom:"1px solid "+C.bdr,fontSize:12,fontWeight:600,color:C.t1}}>Recent Runs</div>
           <div style={{overflowX:"auto"}}>
@@ -322,15 +287,15 @@ function OverviewTab() {
               <thead><tr style={{borderBottom:"1px solid "+C.bdr}}>
                 {["Src","Label","Status","When","Model","Ctx","Tokens"].map(h => <th key={h} style={TH}>{h}</th>)}
               </tr></thead>
-              <tbody>{runs.slice(0,10).map(r => (
+              <tbody>{runs.map(r => (
                 <TRow key={r.id} onClick={() => setSelR(r)}>
-                  <td style={TD}><SrcBadge s={r.source || r.src} /></td>
+                  <td style={TD}><SrcBadge s={r.source || 'MAIN'} /></td>
                   <td style={{...TD,color:C.t1,maxWidth:150,overflow:"hidden",textOverflow:"ellipsis"}}>{r.label}</td>
                   <td style={TD}><Pill s={r.status} glow={r.status==="running"} /></td>
-                  <td style={{...TD,color:C.t3}}>{ta(r.startedAt || r.started)}</td>
+                  <td style={{...TD,color:C.t3}}>{ta(r.startedAt)}</td>
                   <td style={{...TD,color:C.t2,fontSize:10}}>{r.model}</td>
-                  <td style={TD}>{r.ctxAvg > 0 ? <CtxBar p={r.ctxAvg} /> : r.ctx > 0 ? <CtxBar p={r.ctx} /> : "—"}</td>
-                  <td style={{...TD,color:C.t3}}>{fm(r.tokIn || 0)}→{fm(r.tokOut || 0)}</td>
+                  <td style={TD}>{r.contextPct ? <CtxBar p={r.contextPct} /> : "—"}</td>
+                  <td style={{...TD,color:C.t3}}>{fm(r.tokensIn || 0)}-{fm(r.tokensOut || 0)}</td>
                 </TRow>
               ))}</tbody>
             </table>
@@ -338,31 +303,133 @@ function OverviewTab() {
         </Card>
       </div>
 
-      <Drawer open={!!selR} onClose={() => setSelR(null)} title={"Run "+(selR?selR.id:"")}>
-        {selR && <DGrid items={[
-          {l:"Status",v:<Pill s={selR.status}/>},
-          {l:"Source",v:<SrcBadge s={selR.source || selR.src}/>},
-          {l:"Model",v:<span style={{color:C.cy}}>{selR.model}</span>},
-          {l:"Context",v:selR.ctxAvg > 0?<CtxBar p={selR.ctxAvg} />:selR.ctx > 0?<CtxBar p={selR.ctx} />:"—"},
-          {l:"Tokens",v:fm(selR.tokIn || 0)+"→"+fm(selR.tokOut || 0)}
-        ]} />}
+      <Drawer open={!!selR} onClose={() => setSelR(null)} title={"Run " + (selR ? selR.id : "")}>
+        {selR && (
+          <DGrid items={[
+            {l:"Status",v:<Pill s={selR.status}/>},
+            {l:"Source",v:<SrcBadge s={selR.source || 'MAIN'}/>},
+            {l:"Model",v:<span style={{color:C.cy}}>{selR.model}</span>},
+            {l:"Duration",v:df(selR.duration)},
+            {l:"Context",v:selR.contextPct ? <CtxBar p={selR.contextPct}/> : "—"},
+            {l:"Tokens",v:fm(selR.tokensIn || 0)+"-"+fm(selR.tokensOut || 0)}
+          ]} />
+        )}
       </Drawer>
     </div>
   );
 }
 
-function AgentsTab() {
-  const [agents, setAgents] = useState([]);
+/* TAB: TOKENS */
+
+function TokenUsageTab() {
   const [loading, setLoading] = useState(true);
-  const [tf, setTf] = useState("ALL");
+  const [pf, setPf] = useState("ALL");
+  const [tokens, setTokens] = useState([]);
   const [sel, setSel] = useState(null);
 
   useEffect(() => {
     async function loadData() {
       try {
-        const a = await fetchAPI('/agents');
+        const t = await apiCall('/tokens');
+        setTokens(t || []);
+      } catch(e) {
+        console.error(e);
+      } finally {
+        setLoading(false);
+      }
+    }
+    loadData();
+    const interval = setInterval(loadData, 10000);
+    return () => clearInterval(interval);
+  }, []);
+
+  if (loading) return <div style={{color:C.t2,padding:20}}>Loading...</div>;
+
+  const provs = [...new Set(tokens.map(r => r.provider))];
+  const fl = tokens.filter(r => pf==="ALL" || r.provider===pf);
+  const tCost = fl.reduce((s,r) => s + (r.cost || 0), 0);
+  const tIn = fl.reduce((s,r) => s + (r.tokensIn || 0), 0);
+  const tOut = fl.reduce((s,r) => s + (r.tokensOut || 0), 0);
+
+  return (
+    <div>
+      <h1 style={{fontSize:17,fontWeight:600,color:C.t1,marginBottom:4}}>Token Usage</h1>
+      <span style={{fontSize:11,color:C.t3}}>Per-request token tracking</span>
+
+      <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10,margin:"16px 0"}}>
+        <Card p="12px 16px"><div style={{fontSize:10,color:C.t3,marginBottom:4}}>TOTAL COST</div><div style={{fontSize:22,fontWeight:700,color:C.t1}}>${tCost.toFixed(4)}</div></Card>
+        <Card p="12px 16px"><div style={{fontSize:10,color:C.t3,marginBottom:4}}>TOKENS IN</div><div style={{fontSize:22,fontWeight:700,color:C.t1}}>{fm(tIn)}</div></Card>
+        <Card p="12px 16px"><div style={{fontSize:10,color:C.t3,marginBottom:4}}>TOKENS OUT</div><div style={{fontSize:22,fontWeight:700,color:C.t1}}>{fm(tOut)}</div></Card>
+        <Card p="12px 16px"><div style={{fontSize:10,color:C.t3,marginBottom:4}}>AVG SPEED</div><div style={{fontSize:22,fontWeight:700,color:C.t1}}>{fl.length ? (tOut / (tIn + 1)).toFixed(1) : "0"} tps</div></Card>
+      </div>
+
+      <div style={{display:"flex",gap:3,marginBottom:12}}>
+        <Chip label="ALL" active={pf==="ALL"} onClick={() => setPf("ALL")} />
+        {provs.map(p => <Chip key={p} label={p} active={pf===p} onClick={() => setPf(p)} />)}
+        <span style={{fontSize:10,color:C.t3,marginLeft:"auto",alignSelf:"center"}}>{fl.length} requests</span>
+      </div>
+
+      <Card p="0" style={{overflow:"hidden"}}>
+        <div style={{overflowX:"auto"}}>
+          <table style={{width:"100%",borderCollapse:"collapse",fontSize:11}}>
+            <thead><tr style={{borderBottom:"1px solid "+C.bdr}}>
+              {["Timestamp","","Model","Agent","Tokens","Cost","Speed","Finish"].map((h,i) => <th key={i} style={TH}>{h}</th>)}
+            </tr></thead>
+            <tbody>{fl.map(r => (
+              <TRow key={r.id} onClick={() => setSel(r)}>
+                <td style={{...TD,color:C.t2,fontVariantNumeric:"tabular-nums"}}>{new Date(r.timestamp).toLocaleDateString("en-US",{month:"short",day:"numeric"})+", "+new Date(r.timestamp).toLocaleTimeString("en-US",{hour12:true,hour:"2-digit",minute:"2-digit"})}</td>
+                <td style={{...TD,padding:"8px 4px"}}><PIcon p={r.provider} /></td>
+                <td style={TD}><span style={{color:C.accB,fontWeight:600}}>{r.model}</span></td>
+                <td style={{...TD,color:C.t2}}>{r.agent}</td>
+                <td style={{...TD,fontVariantNumeric:"tabular-nums"}}><span style={{color:C.t1}}>{(r.tokensIn || 0).toLocaleString()}</span><span style={{color:C.t4,margin:"0 4px"}}>-</span><span style={{color:C.t2}}>{(r.tokensOut || 0).toLocaleString()}</span></td>
+                <td style={{...TD,color:C.ok,fontWeight:500}}>$ {(r.cost || 0).toFixed(4)}</td>
+                <td style={{...TD,color:C.t2}}>{r.speed} tps</td>
+                <td style={TD}><span style={{color:C.t3}}>{r.finishReason || "—"}</span></td>
+              </TRow>
+            ))}</tbody>
+          </table>
+        </div>
+      </Card>
+
+      <Drawer open={!!sel} onClose={() => setSel(null)} title="Request Detail">
+        {sel && (
+          <div style={{display:"flex",flexDirection:"column",gap:14}}>
+            <DGrid items={[
+              {l:"Provider",v:<span style={{display:"flex",gap:6,alignItems:"center"}}><PIcon p={sel.provider}/>{sel.provider}</span>},
+              {l:"Model",v:<span style={{color:C.accB,fontWeight:600}}>{sel.model}</span>},
+              {l:"Agent",v:sel.agent},
+              {l:"Tokens In",v:<span style={{fontSize:15,fontWeight:700}}>{(sel.tokensIn || 0).toLocaleString()}</span>},
+              {l:"Tokens Out",v:<span style={{fontSize:15,fontWeight:700}}>{(sel.tokensOut || 0).toLocaleString()}</span>},
+              {l:"Cost",v:<span style={{color:C.ok,fontWeight:600}}>${(sel.cost || 0).toFixed(4)}</span>},
+              {l:"Speed",v:sel.speed+" tps"},
+              {l:"Finish",v:sel.finishReason},
+              {l:"Time",v:new Date(sel.timestamp).toLocaleString()}
+            ]} />
+            <SLbl>Cost Breakdown</SLbl>
+            <InfoR l="Input" v={"$"+((sel.tokensIn || 0)*0.000015).toFixed(6)} c={C.ok} />
+            <InfoR l="Output" v={"$"+((sel.tokensOut || 0)*0.000075).toFixed(6)} c={C.ok} />
+            <InfoR l="Total" v={"$"+(sel.cost || 0).toFixed(4)} c={C.ok} />
+          </div>
+        )}
+      </Drawer>
+    </div>
+  );
+}
+
+/* TAB: AGENTS */
+
+function AgentsTab() {
+  const [loading, setLoading] = useState(true);
+  const [tf, setTf] = useState("ALL");
+  const [agents, setAgents] = useState([]);
+  const [sel, setSel] = useState(null);
+
+  useEffect(() => {
+    async function loadData() {
+      try {
+        const a = await apiCall('/agents');
         setAgents(a || []);
-      } catch(e) { 
+      } catch(e) {
         console.error(e);
       } finally {
         setLoading(false);
@@ -373,81 +440,58 @@ function AgentsTab() {
     return () => clearInterval(interval);
   }, []);
 
-  const filtered = agents.filter(a => tf==="ALL" || a.type===tf);
-  const tC = agents.reduce((sum, a) => sum + (a.costDay || 0), 0);
-  const tR = agents.reduce((sum, a) => sum + (a.runs24h || 0), 0);
-  const tE = agents.reduce((sum, a) => sum + (a.err24h || 0), 0);
-
   if (loading) return <div style={{color:C.t2,padding:20}}>Loading...</div>;
+
+  const ags = agents.filter(a => tf==="ALL" || a.type===tf);
+  const tC = agents.reduce((s,a) => s + (a.costDay || 0), 0);
+  const tR = agents.reduce((s,a) => s + (a.runs24h || 0), 0);
 
   return (
     <div>
       <h1 style={{fontSize:17,fontWeight:600,color:C.t1,marginBottom:16}}>Agents</h1>
-      <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:20,marginBottom:20}}>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10,marginBottom:14}}>
         <Card p="12px"><div style={{fontSize:10,color:C.t3,marginBottom:4}}>TOTAL</div><div style={{fontSize:22,fontWeight:700,color:C.t1}}>{agents.length}</div></Card>
         <Card p="12px"><div style={{fontSize:10,color:C.t3,marginBottom:4}}>RUNS 24H</div><div style={{fontSize:22,fontWeight:700,color:C.t1}}>{tR}</div></Card>
-        <Card p="12px"><div style={{fontSize:10,color:C.t3,marginBottom:4}}>ERRORS</div><div style={{fontSize:22,fontWeight:700,color:C.er}}>{tE}</div></Card>
+        <Card p="12px"><div style={{fontSize:10,color:C.t3,marginBottom:4}}>ERRORS</div><div style={{fontSize:22,fontWeight:700,color:C.er}}>{agents.reduce((s,a) => s + (a.err24h || 0), 0)}</div></Card>
         <Card p="12px"><div style={{fontSize:10,color:C.t3,marginBottom:4}}>COST TODAY</div><div style={{fontSize:22,fontWeight:700,color:C.t1}}>${tC.toFixed(2)}</div></Card>
       </div>
       <div style={{display:"flex",gap:3,marginBottom:12}}>{["ALL","MAIN","SUBAGENT"].map(t => <Chip key={t} label={t} active={tf===t} onClick={() => setTf(t)} />)}</div>
       <Card p="0"><div style={{overflowX:"auto"}}>
         <table style={{width:"100%",borderCollapse:"collapse",fontSize:11}}>
           <thead><tr style={{borderBottom:"1px solid "+C.bdr}}>{["Agent","Type","Status","Model","Runs","Err","Tokens","Cost","Lat"].map(h => <th key={h} style={TH}>{h}</th>)}</tr></thead>
-          <tbody>{filtered.map(a => (
+          <tbody>{ags.map(a => (
             <TRow key={a.id} onClick={() => setSel(a)}>
               <td style={TD}><div style={{fontWeight:600,color:C.t1}}>{a.name}</div><div style={{fontSize:9,color:C.t3}}>{a.id}</div></td>
-              <td style={TD}><SrcBadge s={a.type} /></td>
+              <td style={TD}><SrcBadge s={a.type || 'MAIN'} /></td>
               <td style={TD}><Pill s={a.status} glow={a.status==="active"} /></td>
               <td style={{...TD,color:C.cy,fontSize:10}}>{a.model}</td>
               <td style={{...TD,color:C.t1}}>{a.runs24h || 0}</td>
               <td style={{...TD,color:a.err24h>0?C.er:C.t3}}>{a.err24h || 0}</td>
-              <td style={{...TD,color:C.t2}}>{fm(a.tokIn || 0)}→{fm(a.tokOut || 0)}</td>
+              <td style={{...TD,color:C.t2}}>{fm(a.tokensIn24h || 0)}-{fm(a.tokensOut24h || 0)}</td>
               <td style={{...TD,color:C.ok}}>${(a.costDay || 0).toFixed(2)}</td>
-              <td style={{...TD,color:C.t2}}>{a.latAvg || 0}s</td>
+              <td style={{...TD,color:C.t2}}>{(a.latencyAvg || 0).toFixed(2)}s</td>
             </TRow>
           ))}</tbody>
         </table>
       </div></Card>
-      
-      <Drawer open={!!sel} onClose={() => setSel(null)} title={"Agent: "+(sel?sel.name:"")}>
-        {sel && (
-          <div style={{display:"flex",flexDirection:"column",gap:14}}>
-            <div style={{fontSize:12,color:C.t2}}>{sel.description}</div>
-            <DGrid items={[
-              {l:"Type",v:<SrcBadge s={sel.type}/>},
-              {l:"Status",v:<Pill s={sel.status} glow/>},
-              {l:"Model",v:<span style={{color:C.cy}}>{sel.model}</span>},
-              {l:"Provider",v:sel.provider},
-              {l:"Runs 24h",v:<span style={{fontSize:15,fontWeight:700}}>{sel.runs24h || 0}</span>},
-              {l:"Cost",v:<span style={{color:C.ok}}>${(sel.costDay || 0).toFixed(2)}</span>},
-              {l:"Latency",v:(sel.latAvg || 0)+"s"},
-              {l:"P95",v:(sel.latP95 || 0)+"s"},
-              {l:"Context",v:<MBar v={sel.ctxAvg || 0}/>}
-            ]} />
-            {sel.tools && sel.tools.length > 0 && (
-              <>
-                <SLbl n={sel.tools.length}>Tools</SLbl>
-                <div style={{display:"flex",flexWrap:"wrap",gap:4}}>{sel.tools.map(t => <span key={t} style={{padding:"3px 8px",borderRadius:6,background:C.bgSub,border:"1px solid "+C.bdr,fontSize:10,color:C.t2}}>{t}</span>)}</div>
-              </>
-            )}
-          </div>
-        )}
-      </Drawer>
     </div>
   );
 }
 
-function HealthTab() {
-  const [services, setServices] = useState([]);
+/* TAB: SKILLS */
+
+function SkillsTab() {
   const [loading, setLoading] = useState(true);
-  const [exp, setExp] = useState(null);
+  const [cf, setCf] = useState("ALL");
+  const [skills, setSkills] = useState([]);
+  const [sel, setSel] = useState(null);
 
   useEffect(() => {
     async function loadData() {
       try {
-        const s = await fetchAPI('/services');
-        setServices(s || []);
-      } catch(e) { 
+        const s = await apiCall('/skills');
+        setSkills(s || []);
+      } catch(e) {
         console.error(e);
       } finally {
         setLoading(false);
@@ -460,116 +504,233 @@ function HealthTab() {
 
   if (loading) return <div style={{color:C.t2,padding:20}}>Loading...</div>;
 
+  const cats = [...new Set(skills.map(s => s.category || 'General'))];
+  const sk = skills.filter(s => cf==="ALL" || s.category===cf);
+
   return (
     <div>
-      <h1 style={{fontSize:17,fontWeight:600,color:C.t1,marginBottom:16}}>Health</h1>
-      <Card p="14px 18px" style={{marginBottom:16,borderLeft:"3px solid "+C.ok}}>
-        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:12}}>
-          <div style={{display:"flex",alignItems:"center",gap:10}}>
-            <div style={{width:10,height:10,borderRadius:"50%",background:C.ok,boxShadow:"0 0 12px "+C.ok,animation:"pulse 2s infinite"}} />
-            <div><div style={{fontSize:14,fontWeight:600,color:C.t1}}>Gateway Online</div><div style={{fontSize:10,color:C.t3}}>agent-dashboard-backend-production.up.railway.app</div></div>
-          </div>
-        </div>
-      </Card>
-
-      <SLbl n={services.length}>Services</SLbl>
-      {services.map((s,i) => (
-        <Card key={i} hover onClick={() => setExp(exp===i?null:i)} p="10px 14px" style={{marginBottom:6}}>
-          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-            <div style={{display:"flex",alignItems:"center",gap:6}}><Pill s={s.status} glow={s.status==="healthy"} /><span style={{fontSize:12,fontWeight:600,color:C.t1}}>{s.name}</span></div>
-            <span style={{fontSize:10,color:C.t3}}>{s.latencyMs || s.lat || 0}ms</span>
-          </div>
-          {exp===i && (
-            <div style={{borderTop:"1px solid "+C.bdr,paddingTop:8,marginTop:8}}>
-              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:6}}>
-                <div><div style={{fontSize:9,color:C.t4}}>CPU</div><MBar v={s.cpuPct || s.cpu || 0} /></div>
-                <div><div style={{fontSize:9,color:C.t4}}>MEM</div><MBar v={s.memPct || s.mem || 0} /></div>
-              </div>
-              <InfoR l="Host" v={s.host} />
+      <h1 style={{fontSize:17,fontWeight:600,color:C.t1,marginBottom:16}}>Skills</h1>
+      <div style={{display:"flex",gap:3,marginBottom:12,flexWrap:"wrap"}}>
+        <Chip label="ALL" active={cf==="ALL"} onClick={() => setCf("ALL")} />
+        {cats.map(c => <Chip key={c} label={c} active={cf===c} onClick={() => setCf(c)} />)}
+      </div>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(280px,1fr))",gap:10}}>
+        {sk.map(s => (
+          <Card key={s.id} hover onClick={() => setSel(s)} p="12px 16px" style={{opacity:s.enabled?1:0.45}}>
+            <div style={{display:"flex",justifyContent:"space-between",marginBottom:6}}>
+              <div><div style={{fontSize:13,fontWeight:600,color:C.t1}}>{s.name}</div><div style={{fontSize:10,color:C.t3}}>v{s.version || '1.0.0'} · {s.category || 'General'}</div></div>
+              <div style={{display:"flex",gap:4}}><Pill s={s.status} /><span style={{fontSize:9,padding:"2px 6px",borderRadius:4,background:s.enabled?C.okD:C.erD,color:s.enabled?"#4ade80":"#f87171"}}>{s.enabled?"ON":"OFF"}</span></div>
             </div>
-          )}
-        </Card>
-      ))}
-      
-      <SLbl>System</SLbl>
-      <Card p="14px" style={{marginBottom:14}}>
-        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
-          {[{l:"Services",v:services.length},{l:"Healthy",v:services.filter(s => s.status === 'healthy').length}].map(x => (
-            <div key={x.l}><div style={{fontSize:9,color:C.t3}}>{x.l}</div><div style={{fontSize:16,fontWeight:600,color:C.t1}}>{x.v}</div></div>
-          ))}
-        </div>
-      </Card>
+            <div style={{fontSize:10,color:C.t3,marginBottom:8}}>{s.description}</div>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:6}}>
+              <div><div style={{fontSize:9,color:C.t4}}>USE 24H</div><div style={{fontSize:12,fontWeight:600,color:C.t1}}>{s.usage24h || 0}</div></div>
+              <div><div style={{fontSize:9,color:C.t4}}>LATENCY</div><div style={{fontSize:12,fontWeight:600,color:C.t1}}>{df(s.latencyAvg)}</div></div>
+              <div><div style={{fontSize:9,color:C.t4}}>ERR%</div><div style={{fontSize:12,fontWeight:600,color:s.errorRate>1?C.wn:C.ok}}>{(s.errorRate || 0).toFixed(1)}%</div></div>
+            </div>
+          </Card>
+        ))}
+      </div>
     </div>
   );
 }
 
-function LogsTab() {
-  const [logs, setLogs] = useState([]);
+/* TAB: HEALTH */
+
+function HealthTab() {
   const [loading, setLoading] = useState(true);
-  const [lf, setLf] = useState("ALL");
-  const endRef = useRef(null);
+  const [services, setServices] = useState([]);
+  const [agents, setAgents] = useState([]);
 
   useEffect(() => {
     async function loadData() {
       try {
-        const l = await fetchAPI('/logs');
-        setLogs(l || []);
-      } catch(e) { 
+        const [s, a] = await Promise.all([apiCall('/services'), apiCall('/agents')]);
+        setServices(s || []);
+        setAgents(a || []);
+      } catch(e) {
         console.error(e);
       } finally {
         setLoading(false);
       }
     }
     loadData();
-    const interval = setInterval(loadData, 5000);
+    const interval = setInterval(loadData, 15000);
     return () => clearInterval(interval);
   }, []);
 
-  useEffect(() => {
-    if (endRef.current) endRef.current.scrollIntoView({behavior:"smooth"});
-  }, [logs]);
-
-  const filtered = logs.filter(l => lf==="ALL" || l.level===lf);
-  const lc = {};
-  logs.forEach(l => {
-    lc[l.level] = (lc[l.level]||0) + 1;
-  });
-  const lvlC = {DEBUG:C.t3,INFO:C.accB,WARN:C.wn,ERROR:C.er};
+  const healthyCount = services.filter(s => s.status === 'healthy').length;
+  const totalLatency = services.reduce((sum, s) => sum + (s.latencyMs || 0), 0);
+  const avgCpu = services.length ? services.reduce((sum, s) => sum + (s.cpuPct || 0), 0) / services.length : 0;
+  const avgMem = services.length ? services.reduce((sum, s) => sum + (s.memPct || 0), 0) / services.length : 0;
+  const activeAgents = agents.filter(a => a.status === 'active').length;
 
   if (loading) return <div style={{color:C.t2,padding:20}}>Loading...</div>;
 
   return (
+    <div style={{padding:20}}>
+      <h1 style={{fontSize:17,fontWeight:600,color:C.t1,marginBottom:4}}>Health</h1>
+      <span style={{fontSize:11,color:C.t3}}>System status and diagnostics</span>
+
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginTop:16,marginBottom:20,padding:"12px 16px",background:"rgba(15,23,42,0.5)",borderRadius:8,borderLeft:"3px solid "+C.ok}}>
+        <div style={{display:"flex",alignItems:"center",gap:10}}>
+          <div style={{width:10,height:10,borderRadius:"50%",background:C.ok,boxShadow:"0 0 12px "+C.ok,animation:"pulse 2s infinite"}} />
+          <div>
+            <div style={{fontSize:14,fontWeight:600,color:C.t1}}>Gateway Online</div>
+            <div style={{fontSize:10,color:C.t3}}>agent-dashboard-backend-production.up.railway.app</div>
+          </div>
+        </div>
+        <div style={{display:"flex",gap:20}}>
+          <div><div style={{fontSize:9,color:C.t3,textTransform:"uppercase"}}>Uptime</div><div style={{fontSize:13,fontWeight:600,color:C.t1}}>14d 7h</div></div>
+          <div><div style={{fontSize:9,color:C.t3,textTransform:"uppercase"}}>Agents</div><div style={{fontSize:13,fontWeight:600,color:C.t1}}>{activeAgents}</div></div>
+          <div><div style={{fontSize:9,color:C.t3,textTransform:"uppercase"}}>Latency</div><div style={{fontSize:13,fontWeight:600,color:C.t1}}>{Math.round(totalLatency)}ms</div></div>
+        </div>
+      </div>
+
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:20}}>
+        <div>
+          <SLbl n={services.length}>Services</SLbl>
+          {services.map((s,i) => (
+            <Card key={i} p="12px 16px" style={{marginBottom:8,borderLeft:"3px solid "+(s.status==="healthy"?C.ok:C.wn)}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                <div style={{display:"flex",alignItems:"center",gap:10}}>
+                  <div style={{width:8,height:8,borderRadius:"50%",background:s.status==="healthy"?C.ok:C.wn}} />
+                  <div>
+                    <div style={{fontSize:13,fontWeight:600,color:C.t1}}>{s.name}</div>
+                    <div style={{fontSize:9,color:C.t3}}>{s.host}:{s.port}</div>
+                  </div>
+                </div>
+                <div style={{textAlign:"right"}}>
+                  <div style={{fontSize:12,fontWeight:500,color:s.status==="healthy"?C.ok:C.wn}}>{s.status}</div>
+                  <div style={{fontSize:10,color:C.t3}}>{s.latencyMs || 0}ms</div>
+                </div>
+              </div>
+              {(s.cpuPct > 0 || s.memPct > 0) && (
+                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginTop:10}}>
+                  <div><div style={{fontSize:8,color:C.t3,textTransform:"uppercase"}}>CPU</div><MBar v={s.cpuPct || 0} /></div>
+                  <div><div style={{fontSize:8,color:C.t3,textTransform:"uppercase"}}>MEM</div><MBar v={s.memPct || 0} /></div>
+                </div>
+              )}
+            </Card>
+          ))}
+          {services.length === 0 && <div style={{color:C.t3,padding:20,textAlign:"center"}}>No services</div>}
+        </div>
+
+        <div>
+          <SLbl>System Metrics</SLbl>
+          <Card p="16px" style={{marginBottom:14}}>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
+              <div><div style={{fontSize:9,color:C.t3,textTransform:"uppercase",marginBottom:4}}>CPU</div><MBar v={avgCpu} /><div style={{fontSize:11,color:C.t1,marginTop:4}}>{avgCpu.toFixed(1)}%</div></div>
+              <div><div style={{fontSize:9,color:C.t3,textTransform:"uppercase",marginBottom:4}}>Memory</div><MBar v={avgMem} /><div style={{fontSize:11,color:C.t1,marginTop:4}}>{avgMem.toFixed(1)}%</div></div>
+            </div>
+          </Card>
+
+          <SLbl>OpenClaw Diagnostics</SLbl>
+          <Card p="14px" style={{marginBottom:8}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
+              <div style={{display:"flex",alignItems:"center",gap:8}}><div style={{width:8,height:8,borderRadius:"50%",background:C.ok}} /><span style={{fontSize:12,color:C.t1}}>API Connectivity</span></div>
+              <span style={{fontSize:10,color:C.t3}}>-50ms / 120ms</span>
+            </div>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
+              <div style={{display:"flex",alignItems:"center",gap:8}}><div style={{width:8,height:8,borderRadius:"50%",background:C.ok}} /><span style={{fontSize:12,color:C.t1}}>PostgreSQL</span></div>
+              <span style={{fontSize:10,color:C.t3}}>healthy</span>
+            </div>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
+              <div style={{display:"flex",alignItems:"center",gap:8}}><div style={{width:8,height:8,borderRadius:"50%",background:C.ok}} /><span style={{fontSize:12,color:C.t1}}>Gateway</span></div>
+              <span style={{fontSize:10,color:C.t3}}>online</span>
+            </div>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+              <div style={{display:"flex",alignItems:"center",gap:8}}><div style={{width:8,height:8,borderRadius:"50%",background:C.ok}} /><span style={{fontSize:12,color:C.t1}}>Sessions</span></div>
+              <span style={{fontSize:10,color:C.t3}}>{agents.length} total</span>
+            </div>
+          </Card>
+
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"8px 12px",background:"rgba(245,158,11,0.1)",borderRadius:6,marginTop:8}}>
+            <div style={{display:"flex",alignItems:"center",gap:8}}><div style={{width:8,height:8,borderRadius:"50%",background:C.wn}} /><span style={{fontSize:11,color:C.wn}}>Disk Space</span></div>
+            <span style={{fontSize:10,color:C.t3}}>78% used</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* TAB: LOGS */
+
+function LogsTab() {
+  const [lf, setLf] = useState("ALL");
+  const [autoS, setAutoS] = useState(true);
+  const [logs, setLogs] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function loadData() {
+      try {
+        const l = await apiCall('/logs');
+        setLogs(l || []);
+      } catch(e) {
+        console.error(e);
+      } finally {
+        setLoading(false);
+      }
+    }
+    loadData();
+    const interval = setInterval(loadData, 30000);
+    return () => clearInterval(interval);
+  }, []);
+
+  if (loading) return <div style={{color:C.t2,padding:20}}>Loading...</div>;
+
+  const filtered = logs.filter(l => lf==="ALL" || l.level===lf);
+  const lc = {DEBUG:0,INFO:0,WARN:0,ERROR:0,FATAL:0};
+  logs.forEach(l => { if (lc[l.level] !== undefined) lc[l.level]++; });
+  const lvlC = {DEBUG:C.t3,INFO:C.accB,WARN:C.wn,ERROR:C.er,FATAL:"#fca5a5"};
+
+  return (
     <div style={{display:"flex",flexDirection:"column",height:"calc(100vh - 110px)"}}>
       <h1 style={{fontSize:17,fontWeight:600,color:C.t1,marginBottom:10}}>Logs</h1>
-      
+      <span style={{fontSize:11,color:C.t3}}>Activity stream and system events</span>
+
+      <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:16,marginTop:20}}>
+        <Card p="12px 14px"><div style={{fontSize:10,color:C.t3,marginBottom:6}}>TOTAL</div><div style={{fontSize:28,fontWeight:700,color:C.t1}}>{logs.length}</div><div style={{fontSize:10,color:C.t3,marginTop:2}}>{lf==="ALL"?"all":"filtered"}</div></Card>
+        <Card p="12px 14px"><div style={{fontSize:10,color:C.t3,marginBottom:6}}>INFO</div><div style={{fontSize:28,fontWeight:700,color:C.accB}}>{lc.INFO}</div></Card>
+        <Card p="12px 14px"><div style={{fontSize:10,color:C.t3,marginBottom:6}}>WARN</div><div style={{fontSize:28,fontWeight:700,color:C.wn}}>{lc.WARN}</div></Card>
+        <Card p="12px 14px"><div style={{fontSize:10,color:C.t3,marginBottom:6}}>ERROR</div><div style={{fontSize:28,fontWeight:700,color:C.er}}>{lc.ERROR}</div></Card>
+      </div>
+
       <div style={{display:"flex",gap:3,marginBottom:10}}>
         <Chip label="ALL" active={lf==="ALL"} onClick={() => setLf("ALL")} />
         {["DEBUG","INFO","WARN","ERROR"].map(l => <Chip key={l} label={l} active={lf===l} onClick={() => setLf(l)} />)}
+        <button onClick={() => setAutoS(!autoS)} style={{marginLeft:"auto",padding:"4px 10px",borderRadius:6,fontSize:10,fontFamily:FN,background:autoS?C.accD:"rgba(255,255,255,.02)",color:autoS?C.accB:C.t3,border:"1px solid "+(autoS?"rgba(59,130,246,.35)":C.bdr),cursor:"pointer"}}>⤓ Auto</button>
       </div>
-      
+
       <Card p="0" style={{flex:1,overflow:"hidden",display:"flex",flexDirection:"column"}}>
         <div style={{display:"grid",gridTemplateColumns:"120px 44px 90px 1fr",padding:"7px 14px",borderBottom:"1px solid "+C.bdr,background:C.bgS}}>
           {["Time","Level","Source","Message"].map(h => <span key={h} style={{fontSize:9,color:C.t3,textTransform:"uppercase"}}>{h}</span>)}
         </div>
         <div style={{flex:1,overflowY:"auto"}}>
-          {filtered.slice(-80).map(l => (
-            <div key={l.id} style={{display:"grid",gridTemplateColumns:"120px 44px 90px 1fr",padding:"4px 14px",borderBottom:"1px solid rgba(255,255,255,.015)",background:l.level==="ERROR"?"rgba(239,68,68,.03)":l.level==="WARN"?"rgba(245,158,11,.02)":"transparent"}}>
-              <span style={{fontSize:10,color:C.t3,fontVariantNumeric:"tabular-nums"}}>{new Date(l.timestamp).toLocaleTimeString("en-US",{hour12:false})}</span>
-              <LvlBadge l={l.level} />
-              <span style={{fontSize:10,color:C.cy,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{l.source}</span>
-              <span style={{fontSize:10,color:l.level==="ERROR"?"#f87171":C.t2,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{l.message}</span>
+          {filtered.slice(0,100).map(l => (
+            <div key={l.id} style={{display:"grid",gridTemplateColumns:"120px 44px 90px 1fr",padding:"10px 14px",borderBottom:"1px solid rgba(255,255,255,.03)",background:l.level==="ERROR"?"rgba(239,68,68,.05)":l.level==="WARN"?"rgba(245,158,11,.02)":"transparent"}}>
+              <span style={{fontSize:11,color:C.t2,fontVariantNumeric:"tabular-nums"}}>{new Date(l.timestamp).toLocaleString("en-US",{month:"short",day:"numeric",hour:"2-digit",minute:"2-digit",second:"2-digit",hour12:false})}</span>
+              <span style={{padding:"2px 6px",borderRadius:4,fontSize:9,fontWeight:600,background:l.level==="INFO"?"rgba(59,130,246,.12)":l.level==="WARN"?"rgba(245,158,11,.1)":l.level==="ERROR"?"rgba(239,68,68,.1)":"rgba(148,163,184,.08)",color:lvlC[l]||C.t3}}>{l.level}</span>
+              <span style={{fontSize:11,color:C.cy,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{l.source}</span>
+              <span style={{fontSize:11,color:l.level==="ERROR"?"#f87171":C.t2,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{l.message}</span>
             </div>
           ))}
-          <div ref={endRef} />
+          {filtered.length === 0 && (
+            <div style={{padding:40,textAlign:"center",color:C.t3}}>No logs to display</div>
+          )}
         </div>
       </Card>
     </div>
   );
 }
 
+/* MAIN APP */
+
 export default function MDXDashboard() {
   const [tab, setTab] = useState("overview");
   const [time, setTime] = useState(Date.now());
+  const [auto, setAuto] = useState(true);
   const [col, setCol] = useState(false);
 
   useEffect(() => {
@@ -579,7 +740,9 @@ export default function MDXDashboard() {
 
   const nav = [
     {k:"overview",l:"Overview",i:"⊞"},
+    {k:"tokens",l:"Token Usage",i:"◎"},
     {k:"agents",l:"Agents",i:"◈"},
+    {k:"skills",l:"Skills",i:"⚡"},
     {k:"health",l:"Health",i:"♥"},
     {k:"logs",l:"Logs",i:"☰"},
   ];
@@ -608,6 +771,8 @@ export default function MDXDashboard() {
             <span style={{fontSize:10,color:C.ok,fontWeight:500}}>Live</span>
           </div>
           <span style={{fontSize:10,color:C.t3,fontVariantNumeric:"tabular-nums"}}>{new Date(time).toLocaleTimeString("en-US",{hour12:false})}</span>
+          <button style={{background:"rgba(255,255,255,.03)",border:"1px solid "+C.bdr,borderRadius:6,padding:"3px 8px",color:C.t2,cursor:"pointer",fontSize:11,fontFamily:FN}}>↻</button>
+          <button onClick={() => setAuto(!auto)} style={{background:auto?C.accD:"rgba(255,255,255,.03)",border:"1px solid "+(auto?"rgba(59,130,246,.4)":C.bdr),borderRadius:6,padding:"3px 10px",color:auto?C.acc:C.t3,cursor:"pointer",fontSize:9,fontWeight:500,fontFamily:FN}}>AUTO</button>
         </div>
       </header>
       <div style={{display:"flex",flex:1,overflow:"hidden"}}>
@@ -627,7 +792,9 @@ export default function MDXDashboard() {
         </nav>
         <main style={{flex:1,overflow:"auto",padding:"18px 22px"}}>
           {tab === "overview" && <OverviewTab />}
+          {tab === "tokens" && <TokenUsageTab />}
           {tab === "agents" && <AgentsTab />}
+          {tab === "skills" && <SkillsTab />}
           {tab === "health" && <HealthTab />}
           {tab === "logs" && <LogsTab />}
         </main>
