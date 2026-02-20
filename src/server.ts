@@ -207,6 +207,39 @@ server.get('/api/services', async () => {
   return knownServices;
 });
 
+
+// Get token usage data for Token Usage tab
+server.get('/api/tokens', async () => {
+  try {
+    const tokenUsages = await prisma.tokenUsageRow.findMany({
+      orderBy: { timestamp: 'desc' },
+      take: 100,
+      include: {
+        agent: { select: { name: true } },
+        session: { select: { id: true } }
+      }
+    });
+
+    return tokenUsages.map(t => ({
+      id: t.id,
+      timestamp: t.timestamp.getTime(),
+      provider: t.provider,
+      model: t.model,
+      agent: t.agent.name,
+      tokensIn: t.tokensIn,
+      tokensOut: t.tokensOut,
+      cost: t.cost,
+      speed: t.speed,
+      finishReason: t.finishReason || '--',
+      sessionId: t.session.id
+    }));
+  } catch (error) {
+    console.error('Error fetching token usage:', error);
+    return [];
+  }
+});
+
+
 // Get logs - combine DB logs with recent activity from sessions/runs
 server.get('/api/logs', async () => {
   const logs = await prisma.logEntry.findMany({
