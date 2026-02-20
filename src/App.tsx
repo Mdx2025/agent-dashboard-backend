@@ -51,7 +51,7 @@ const SM = {
   offline:{bg:C.erD,b:C.erB,c:"#f87171",d:C.er}
 };
 
-const API_BASE = import.meta.env.VITE_API_URL || 'https://agent-dashboard-backend-production.up.railway.app/api';
+const API_BASE = import.meta.env.VITE_API_BASE_URL || 'https://agent-dashboard-backend-production.up.railway.app/api';
 
 async function apiCall(endpoint, options = {}) {
   const res = await fetch(`${API_BASE}${endpoint}`, {
