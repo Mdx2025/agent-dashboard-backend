@@ -204,11 +204,27 @@ function OverviewTab() {
   useEffect(() => {
     async function loadData() {
       try {
-        const [a, s, r] = await Promise.all([
+        const results = await Promise.allSettled([
           apiCall('/agents'),
           apiCall('/sessions'),
           apiCall('/runs'),
         ]);
+
+        const [a, s, r] = results.map(r =>
+          r.status === 'fulfilled' ? r.value : []
+        );
+
+        // Log individual failures without breaking UI
+        if (results[0].status === 'rejected') {
+          console.error('Failed to load agents:', results[0].reason?.message);
+        }
+        if (results[1].status === 'rejected') {
+          console.error('Failed to load sessions:', results[1].reason?.message);
+        }
+        if (results[2].status === 'rejected') {
+          console.error('Failed to load runs:', results[2].reason?.message);
+        }
+
         setAgents(a || []);
         setSessions(s || []);
         setRuns(r || []);
