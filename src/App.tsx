@@ -200,6 +200,22 @@ function OverviewTab() {
   const [sessions, setSessions] = useState([]);
   const [runs, setRuns] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [viewportHeight, setViewportHeight] = useState(window.innerHeight);
+
+  // Calculate how many runs can fit based on viewport height
+  useEffect(() => {
+    const handleResize = () => setViewportHeight(window.innerHeight);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  // Calculate items per page: viewport - (header 80 + KPIs 80 + Agents 100 + Sessions header 40) = available
+  const ROW_HEIGHT = 48; // Height of each run row
+  const HEADER_SPACE = 300; // Approximate height of header + KPIs + Agents + Sessions header
+  const MAX_RUNS = 10;
+  const availableHeight = viewportHeight - HEADER_SPACE;
+  const runsPerPage = Math.min(Math.floor(availableHeight / ROW_HEIGHT), MAX_RUNS);
+  const displayRuns = runs.slice(0, Math.max(runsPerPage, 5)); // Minimum 5 items
 
   useEffect(() => {
     async function loadData() {
@@ -304,7 +320,7 @@ function OverviewTab() {
               <thead><tr style={{borderBottom:"1px solid "+C.bdr}}>
                 {["Src","Label","Status","When","Model","Ctx","Tokens"].map(h => <th key={h} style={TH}>{h}</th>)}
               </tr></thead>
-              <tbody>{runs.map(r => (
+              <tbody>{displayRuns.map(r => (
                 <TRow key={r.id} onClick={() => setSelR(r)}>
                   <td style={TD}><SrcBadge s={r.source || 'MAIN'} /></td>
                   <td style={{...TD,color:C.t1,maxWidth:150,overflow:"hidden",textOverflow:"ellipsis"}}>{r.label}</td>
