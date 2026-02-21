@@ -152,6 +152,32 @@ server.get('/api/runs', async () => {
   }));
 });
 
+// Get token usage data
+server.get('/api/tokens', async () => {
+  const tokenUsages = await prisma.tokenUsageRow.findMany({
+    orderBy: { timestamp: 'desc' },
+    take: 100,
+    include: {
+      agent: { select: { name: true } },
+      session: { select: { id: true } }
+    }
+  });
+  
+  return tokenUsages.map(t => ({
+    id: t.id,
+    timestamp: t.timestamp.getTime(),
+    provider: t.provider,
+    model: t.model,
+    agent: t.agent.name,
+    tokensIn: t.tokensIn,
+    tokensOut: t.tokensOut,
+    cost: t.cost,
+    speed: t.speed,
+    finishReason: t.finishReason,
+    sessionId: t.sessionId,
+  }));
+});
+
 // Get all skills
 server.get('/api/skills', async () => {
   const skills = await prisma.skill.findMany({
@@ -402,9 +428,18 @@ server.post('/api/sync', async (request, reply) => {
     if (runs) {
       for (const r of runs) {
         try {
-          await prisma.$executeRaw`INSERT INTO "Run" (id, source, label, status, "startedAt", duration, model, "contextPct", "tokensIn", "tokensOut", "finishReason") VALUES (${r.id}, ${r.source}, ${r.label}, ${r.status}, ${new Date(r.startedAt)}, ${r.duration}, ${r.model}, ${r.contextPct}, ${r.tokensIn}, ${r.tokensOut}, ${r.finishReason}) ON CONFLICT (id) DO UPDATE SET source = EXCLUDED.source, label = EXCLUDED.label, status = EXCLUDED.status, duration = EXCLUDED.duration, "contextPct" = EXCLUDED."contextPct", "tokensIn" = EXCLUDED."tokensIn", "tokensOut" = EXCLUDED."tokensOut", "finishReason" = EXCLUDED."finishReason"`;
+          await prisma.$executeRawUnsafe(
+            `INSERT INTO "Run" (id, source, label, status, "startedAt", duration, model, "contextPct", "tokensIn", "tokensOut", "finishReason")
+             VALUES ($1, $2::"RunSource", $3, $4::"RunStatus", $5, $6, $7, $8, $9, $10, $11::"FinishReason")
+             ON CONFLICT (id) DO UPDATE SET
+               source = $2::"RunSource", label = $3, status = $4::"RunStatus",
+               duration = $6, "contextPct" = $8, "tokensIn" = $9, "tokensOut" = $10,
+               "finishReason" = $11::"FinishReason"`,
+            r.id, r.source, r.label, r.status, new Date(r.startedAt),
+            r.duration, r.model, r.contextPct, r.tokensIn, r.tokensOut, r.finishReason
+          );
         } catch (e: any) {
-          console.log('Run sync warning:', e.message);
+          console.log('Run sync warning:', r.id, e.message);
         }
       }
     }

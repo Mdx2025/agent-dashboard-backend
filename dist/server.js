@@ -111,6 +111,30 @@ server.get('/api/runs', async () => {
         duration: r.duration,
     }));
 });
+// Get token usage data
+server.get('/api/tokens', async () => {
+    const tokenUsages = await prisma.tokenUsageRow.findMany({
+        orderBy: { timestamp: 'desc' },
+        take: 100,
+        include: {
+            agent: { select: { name: true } },
+            session: { select: { id: true } }
+        }
+    });
+    return tokenUsages.map(t => ({
+        id: t.id,
+        timestamp: t.timestamp.getTime(),
+        provider: t.provider,
+        model: t.model,
+        agent: t.agent.name,
+        tokensIn: t.tokensIn,
+        tokensOut: t.tokensOut,
+        cost: t.cost,
+        speed: t.speed,
+        finishReason: t.finishReason,
+        sessionId: t.sessionId,
+    }));
+});
 // Get all skills
 server.get('/api/skills', async () => {
     const skills = await prisma.skill.findMany({
