@@ -124,8 +124,6 @@ async function apiCall(endpoint, options = {}) {
    UI COMPONENTS
    ============================================ */
 
-   ============================================ */
-
 // Status Pill Component
 function Pill({s, glow}) {
   const st = SM[s] || SM.idle;
