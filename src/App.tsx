@@ -270,7 +270,7 @@ function OverviewTab() {
   // Calculate items per page: viewport - (header 80 + KPIs 80 + Agents 100 + Sessions header 40) = available
   const ROW_HEIGHT = 48; // Height of each run row
   const HEADER_SPACE = 300; // Approximate height of header + KPIs + Agents + Sessions header
-  const MAX_RUNS = 16; // Increased to fill viewport (was 10)
+  const MAX_RUNS = 30; // Increased to fill all viewport space (was 16)
   const availableHeight = viewportHeight - HEADER_SPACE;
   const runsPerPage = Math.min(Math.floor(availableHeight / ROW_HEIGHT), MAX_RUNS);
   const displayRuns = runs.slice(0, Math.max(runsPerPage, 5)); // Minimum 5 items
@@ -357,7 +357,7 @@ function OverviewTab() {
       <div style={{display:"grid",gridTemplateColumns:"300px 1fr",gap:16,alignItems:"stretch"}}>
         <Card p="0" style={{display:"flex",flexDirection:"column"}}>
           <div style={{padding:"12px 16px",borderBottom:"1px solid "+C.bdr,fontSize:12,fontWeight:600,color:C.t1}}>Sessions</div>
-          <div style={{flex:1,overflowY:"auto",maxHeight: Math.min(Math.floor((viewportHeight - 350) / 45), 15) * 45 + 20}}>
+          <div style={{flex:1,overflowY:"auto",maxHeight: Math.min(Math.floor((viewportHeight - 250) / 45), 25) * 45 + 20}}>
             {sessions.slice(0, Math.min(Math.floor((viewportHeight - 350) / 45), 15)).map(s => (
               <div key={s.id} style={{padding:"8px 14px",borderBottom:"1px solid rgba(255,255,255,.02)"}}>
                 <div style={{display:"flex",justifyContent:"space-between",marginBottom:2}}>
