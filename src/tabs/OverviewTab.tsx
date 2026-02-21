@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { fetchAgents, fetchSessions, fetchRuns } from '../services';
 import { Agent, Session, Run } from '../api/types';
+import { useViewportLimits } from '../hooks/useViewportLimits';
 
 export function OverviewTab() {
   const [agents, setAgents] = useState<Agent[]>([]);
@@ -10,6 +11,9 @@ export function OverviewTab() {
   const [runs, setRuns] = useState<Run[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
+  
+  // Dynamic viewport limits
+  const { limits, viewport, utilization } = useViewportLimits();
 
   useEffect(() => {
     loadOverviewData();
@@ -64,6 +68,15 @@ export function OverviewTab() {
         </div>
       </div>
 
+      {/* Viewport utilization indicator (dev mode) */}
+      {process.env.NODE_ENV === 'development' && (
+        <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded text-xs">
+          <span className="font-mono">Viewport: {viewport.width}×{viewport.height} | </span>
+          <span className="font-mono">Limits: Agents={limits.agents}, Runs={limits.runs} | </span>
+          <span className="font-mono">Utilization: Agents {utilization.agents(agents.length)}%, Runs {utilization.runs(runs.length)}%</span>
+        </div>
+      )}
+      
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Recent Agents */}
         <div className="border rounded-xl p-6 shadow-md">
@@ -72,7 +85,7 @@ export function OverviewTab() {
             <p>No agents found.</p>
           ) : (
             <ul className="space-y-2">
-              {agents.slice(0, 5).map((agent) => (
+              {agents.slice(0, limits.agents).map((agent) => (
                 <li key={agent.id} className="flex justify-between items-center border-b pb-2">
                   <div>
                     <p className="font-medium">{agent.name}</p>
@@ -94,7 +107,7 @@ export function OverviewTab() {
             <p>No runs found.</p>
           ) : (
             <ul className="space-y-2">
-              {runs.slice(0, 5).map((run) => (
+              {runs.slice(0, limits.runs).map((run) => (
                 <li key={run.id} className="flex justify-between items-center border-b pb-2">
                   <div>
                     <p className="font-medium">{run.label}</p>
