@@ -106,6 +106,24 @@ const SM = {
    API & HELPERS
    ============================================ */
 
+const API_BASE = import.meta.env.VITE_API_BASE_URL || 'https://agent-dashboard-backend-production.up.railway.app/api';
+
+async function apiCall(endpoint, options = {}) {
+  const res = await fetch(`${API_BASE}${endpoint}`, {
+    ...options,
+    headers: {
+      'Content-Type': 'application/json',
+      ...options.headers,
+    },
+  });
+  if (!res.ok) throw new Error(`API Error: ${res.status}`);
+  return res.json();
+}
+
+/* ============================================
+   UI COMPONENTS
+   ============================================ */
+
 async function apiCall(endpoint, options = {}) {
   const res = await fetch(`${API_BASE}${endpoint}`, {
     ...options,
