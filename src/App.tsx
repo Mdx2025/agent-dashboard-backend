@@ -124,20 +124,6 @@ async function apiCall(endpoint, options = {}) {
    UI COMPONENTS
    ============================================ */
 
-async function apiCall(endpoint, options = {}) {
-  const res = await fetch(`${API_BASE}${endpoint}`, {
-    ...options,
-    headers: {
-      'Content-Type': 'application/json',
-      ...options.headers,
-    },
-  });
-  if (!res.ok) throw new Error(`API Error: ${res.status}`);
-  return res.json();
-}
-
-/* ============================================
-   UI COMPONENTS
    ============================================ */
 
 // Status Pill Component
