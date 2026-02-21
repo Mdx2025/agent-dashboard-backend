@@ -355,11 +355,11 @@ function OverviewTab() {
       </div>
 
       <div style={{display:"grid",gridTemplateColumns:"300px 1fr",gap:16,alignItems:"stretch"}}>
-        <Card p="0" style={{display:"flex",flexDirection:"column"}}>
-          <div style={{padding:"12px 16px",borderBottom:"1px solid "+C.bdr,fontSize:12,fontWeight:600,color:C.t1}}>Sessions</div>
-          <div style={{flex:1,overflowY:"auto",maxHeight: Math.min(Math.floor((viewportHeight - 250) / 45), 25) * 45 + 20}}>
+        <Card p="0" style={{display:"flex",flexDirection:"column",padding:"16px"}}>
+          <div style={{padding:"0 0 12px 0",borderBottom:"1px solid "+C.bdr,fontSize:12,fontWeight:600,color:C.t1}}>Sessions</div>
+          <div style={{flex:1,overflowY:"auto",maxHeight: Math.min(Math.floor((viewportHeight - 250) / 45), 25) * 45 + 20,padding:"8px 0 0 0"}}>
             {sessions.slice(0, Math.min(Math.floor((viewportHeight - 250) / 45), 25)).map(s => (
-              <div key={s.id} style={{padding:"8px 14px",borderBottom:"1px solid rgba(255,255,255,.02)"}}>
+              <div key={s.id} style={{padding:"10px 14px",borderBottom:"1px solid rgba(255,255,255,.02)"}}>
                 <div style={{display:"flex",justifyContent:"space-between",marginBottom:2}}>
                   <span style={{fontSize:11,fontWeight:600,color:C.accB}}>{s.id.substring(0,16)}</span>
                   <Pill s={s.status} />
@@ -371,22 +371,22 @@ function OverviewTab() {
             ))}
           </div>
         </Card>
-        <Card p="0" style={{display:"flex",flexDirection:"column",overflow:"hidden"}}>
-          <div style={{padding:"12px 16px",borderBottom:"1px solid "+C.bdr,fontSize:12,fontWeight:600,color:C.t1}}>Recent Runs</div>
-          <div style={{flex:1,overflow:"auto",maxHeight: Math.min(Math.floor((viewportHeight - 250) / 48), 30) * 48 + 50}}>
+        <Card p="0" style={{display:"flex",flexDirection:"column",overflow:"hidden",padding:"16px"}}>
+          <div style={{padding:"0 0 12px 0",borderBottom:"1px solid "+C.bdr,fontSize:12,fontWeight:600,color:C.t1}}>Recent Runs</div>
+          <div style={{flex:1,overflow:"auto",maxHeight: Math.min(Math.floor((viewportHeight - 250) / 48), 30) * 48 + 50,padding:"8px 0 0 0"}}>
             <table style={{width:"100%",borderCollapse:"collapse",fontSize:11}}>
               <thead><tr style={{borderBottom:"1px solid "+C.bdr}}>
-                {["Src","Label","Status","When","Model","Ctx","Tokens"].map(h => <th key={h} style={TH}>{h}</th>)}
+                {["Src","Label","Status","When","Model","Ctx","Tokens"].map(h => <th key={h} style={{...TH,padding:"8px 12px"}}>{h}</th>)}
               </tr></thead>
               <tbody>{displayRuns.map(r => (
                 <TRow key={r.id} onClick={() => setSelR(r)}>
-                  <td style={TD}><SrcBadge s={r.source || 'MAIN'} /></td>
-                  <td style={{...TD,color:C.t1,maxWidth:150,overflow:"hidden",textOverflow:"ellipsis"}}>{r.label}</td>
-                  <td style={TD}><Pill s={r.status} glow={r.status==="running"} /></td>
-                  <td style={{...TD,color:C.t3}}>{ta(r.startedAt)}</td>
-                  <td style={{...TD,color:C.t2,fontSize:10}}>{r.model}</td>
-                  <td style={TD}>{r.contextPct ? <CtxBar p={r.contextPct} /> : "—"}</td>
-                  <td style={{...TD,color:C.t3}}>{fm(r.tokensIn || 0)}-{fm(r.tokensOut || 0)}</td>
+                  <td style={{...TD,padding:"10px 12px"}}><SrcBadge s={r.source || 'MAIN'} /></td>
+                  <td style={{...TD,color:C.t1,maxWidth:150,overflow:"hidden",textOverflow:"ellipsis",padding:"10px 12px"}}>{r.label}</td>
+                  <td style={{...TD,padding:"10px 12px"}}><Pill s={r.status} glow={r.status==="running"} /></td>
+                  <td style={{...TD,color:C.t3,padding:"10px 12px"}}>{ta(r.startedAt)}</td>
+                  <td style={{...TD,color:C.t2,fontSize:10,padding:"10px 12px"}}>{r.model}</td>
+                  <td style={{...TD,padding:"10px 12px"}}>{r.contextPct ? <CtxBar p={r.contextPct} /> : "—"}</td>
+                  <td style={{...TD,color:C.t3,padding:"10px 12px"}}>{fm(r.tokensIn || 0)}-{fm(r.tokensOut || 0)}</td>
                 </TRow>
               ))}</tbody>
             </table>
