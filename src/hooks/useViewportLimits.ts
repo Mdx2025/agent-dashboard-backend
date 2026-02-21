@@ -110,6 +110,8 @@ export function useViewportLimits() {
       
       const breakpoint = getHeightBreakpoint(height);
       
+      console.log('🎯 Viewport limits updated:', { height, breakpoint, limits: newLimits });
+      
       setLimits(newLimits);
       setViewport({ width, height, breakpoint });
     };
