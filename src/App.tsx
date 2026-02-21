@@ -299,8 +299,8 @@ function OverviewTab() {
       <div style={{display:"grid",gridTemplateColumns:"300px 1fr",gap:14,alignItems:"start"}}>
         <Card p="0">
           <div style={{padding:"10px 14px",borderBottom:"1px solid "+C.bdr,fontSize:12,fontWeight:600,color:C.t1}}>Sessions</div>
-          <div style={{maxHeight:340,overflowY:"auto"}}>
-            {sessions.map(s => (
+          <div style={{maxHeight: Math.min(Math.floor((viewportHeight - 400) / 80), 8) * 80 + 40, overflowY:"auto"}}>
+            {sessions.slice(0, Math.min(Math.floor((viewportHeight - 400) / 80), 8)).map(s => (
               <div key={s.id} style={{padding:"8px 14px",borderBottom:"1px solid rgba(255,255,255,.02)"}}>
                 <div style={{display:"flex",justifyContent:"space-between",marginBottom:2}}>
                   <span style={{fontSize:11,fontWeight:600,color:C.accB}}>{s.id.substring(0,16)}</span>
