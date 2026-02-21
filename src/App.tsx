@@ -212,7 +212,7 @@ function OverviewTab() {
   // Calculate items per page: viewport - (header 80 + KPIs 80 + Agents 100 + Sessions header 40) = available
   const ROW_HEIGHT = 48; // Height of each run row
   const HEADER_SPACE = 300; // Approximate height of header + KPIs + Agents + Sessions header
-  const MAX_RUNS = 10;
+  const MAX_RUNS = 16; // Increased to fill viewport (was 10)
   const availableHeight = viewportHeight - HEADER_SPACE;
   const runsPerPage = Math.min(Math.floor(availableHeight / ROW_HEIGHT), MAX_RUNS);
   const displayRuns = runs.slice(0, Math.max(runsPerPage, 5)); // Minimum 5 items
