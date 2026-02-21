@@ -4,8 +4,9 @@ import { useState, useEffect } from 'react';
  * Viewport limits configuration based on height
  * These limits ensure no empty spaces in the layout
  * 
- * @version 1.0.1 - Dynamic viewport detection
+ * @version 2.0.0 - Dynamic viewport detection with enhanced logging
  */
+
 const VIEWPORT_LIMITS = {
   // Viewport height breakpoints
   breakpoints: {
@@ -110,7 +111,12 @@ export function useViewportLimits() {
       
       const breakpoint = getHeightBreakpoint(height);
       
-      console.log('🎯 Viewport limits updated:', { height, breakpoint, limits: newLimits });
+      console.log('🎯 [v2.0.0] Viewport limits updated:', { 
+        width, 
+        height, 
+        breakpoint, 
+        limits: newLimits 
+      });
       
       setLimits(newLimits);
       setViewport({ width, height, breakpoint });
@@ -177,4 +183,3 @@ export function useViewport() {
 }
 
 export default useViewportLimits;
-// Build timestamp: 1771655895
