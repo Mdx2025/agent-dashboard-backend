@@ -1,6 +1,49 @@
 console.log("v2");
 import { useState, useEffect, useRef } from "react";
 
+/* ============================================
+   DESIGN SYSTEM - SPACING & TYPOGRAPHY TOKENS
+   ============================================ */
+
+// Spacing Scale (8px base unit)
+const SPACING = {
+  xxs: 4,   // 0.5x - Fine spacing (icon gaps, label spacing)
+  xs: 8,    // 1x - Tight spacing (inline elements)
+  sm: 12,   // 1.5x - Default spacing (card padding, grid gaps)
+  md: 16,   // 2x - Medium spacing (section padding)
+  lg: 20,   // 2.5x - Large spacing (section margins)
+  xl: 24,   // 3x - XL spacing (major sections)
+  "2xl": 32 // 4x - Extra large spacing
+} as const;
+
+// Border Radius Scale
+const RADIUS = {
+  sm: 4,   // Pills, badges
+  md: 6,   // Buttons, chips
+  lg: 8,   // Cards
+  xl: 12   // Panels, modals
+} as const;
+
+// Typography Scale
+const FONT_SIZE = {
+  xs: 9,   // Badges, metadata
+  sm: 10,  // Labels, captions
+  md: 11,  // Body text, data
+  lg: 12,  // Emphasis text
+  xl: 14,  // Subheadings
+  "2xl": 17, // Section headings
+  "3xl": 22, // Large numbers
+  "4xl": 24  // Display numbers
+} as const;
+
+// Line Heights
+const LINE_HEIGHT = {
+  tight: 1.1,
+  normal: 1.2,
+  relaxed: 1.5
+} as const;
+
+// Color System (existing)
 const C = {
   bg:"#080c18", bgS:"rgba(12,18,35,0.75)", bgH:"rgba(18,26,52,0.9)", bgSub:"rgba(255,255,255,0.02)",
   bdr:"rgba(50,70,120,0.22)", bdrH:"rgba(59,130,246,0.45)",
@@ -10,9 +53,13 @@ const C = {
   er:"#ef4444", erD:"rgba(239,68,68,0.1)", erB:"rgba(239,68,68,0.3)",
   cy:"#06b6d4", pu:"#a78bfa", puD:"rgba(167,139,250,0.1)",
   t1:"#e2e8f0", t2:"#94a3b8", t3:"#64748b", t4:"#475569"
-};
+} as const;
 
-const FN = "'JetBrains Mono','SF Mono',monospace";
+const FN = "'JetBrains Mono','SF Mono',monospace" as const;
+
+/* ============================================
+   UTILITY FUNCTIONS
+   ============================================ */
 
 const fm = n => {
   if(n>=1e6) return (n/1e6).toFixed(1)+"M";
@@ -33,6 +80,10 @@ const df = ms => {
   return (ms/1000).toFixed(1)+"s";
 };
 
+/* ============================================
+   STATUS MAPPINGS
+   ============================================ */
+
 const SM = {
   active:{bg:C.okD,b:C.okB,c:"#4ade80",d:C.ok},
   healthy:{bg:C.okD,b:C.okB,c:"#4ade80",d:C.ok},
@@ -49,9 +100,11 @@ const SM = {
   failed:{bg:C.erD,b:C.erB,c:"#f87171",d:C.er},
   fail:{bg:C.erD,b:C.erB,c:"#f87171",d:C.er},
   offline:{bg:C.erD,b:C.erB,c:"#f87171",d:C.er}
-};
+} as const;
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL || 'https://agent-dashboard-backend-production.up.railway.app/api';
+/* ============================================
+   API & HELPERS
+   ============================================ */
 
 async function apiCall(endpoint, options = {}) {
   const res = await fetch(`${API_BASE}${endpoint}`, {
@@ -65,12 +118,15 @@ async function apiCall(endpoint, options = {}) {
   return res.json();
 }
 
-/* UI PRIMITIVES */
+/* ============================================
+   UI COMPONENTS
+   ============================================ */
 
+// Status Pill Component
 function Pill({s, glow}) {
   const st = SM[s] || SM.idle;
   return (
-    <span style={{display:"inline-flex",alignItems:"center",gap:5,padding:"2px 8px",background:st.bg,border:"1px solid "+st.b,borderRadius:6,fontSize:10,fontWeight:500,color:st.c}}>
+    <span style={{display:"inline-flex",alignItems:"center",gap:SPACING.xs,padding:`${SPACING.xxs} ${SPACING.sm}`,background:st.bg,border:"1px solid "+st.b,borderRadius:RADIUS.md,fontSize:FONT_SIZE.sm,fontWeight:500,color:st.c}}>
       <span style={{width:5,height:5,borderRadius:"50%",background:st.d,boxShadow:glow?"0 0 6px "+st.d:"none",animation:glow?"pulse 1.5s infinite":"none"}} />
       {s}
     </span>
