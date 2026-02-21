@@ -12,11 +12,6 @@ const C = {
   t1:"#e2e8f0", t2:"#94a3b8", t3:"#64748b", t4:"#475569"
 };
 
-// CONSISTENT SPACING SYSTEM
-const S = { xxs:"4px", xs:"8px", sm:"12px", md:"16px", lg:"24px", xl:"32px", "2xl":"48px" };
-const R = { sm:"6px", md:"8px", lg:"12px", xl:"16px" };
-const F = { xs:"9px", sm:"10px", md:"11px", lg:"12px", xl:"14px" };
-
 const FN = "'JetBrains Mono','SF Mono',monospace";
 
 const fm = n => {
@@ -272,7 +267,7 @@ function OverviewTab() {
       <h1 style={{fontSize:17,fontWeight:600,color:C.t1,marginBottom:4}}>Overview</h1>
       <span style={{fontSize:11,color:C.t3}}>Real-time agent operations</span>
 
-      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(180px,1fr))",gap:S.md,margin:"16px 0"}}>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:10,margin:"16px 0"}}>
         <KPI label="Sessions" value={sessions.length} sub={`${activeSessions} active`} />
         <KPI label="Tokens In" value={fm(totalTokensIn)} sub="24h" />
         <KPI label="Tokens Out" value={fm(totalTokensOut)} sub="24h" />
@@ -285,9 +280,9 @@ function OverviewTab() {
       </div>
 
       <SLbl>Agents</SLbl>
-      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(180px,1fr))",gap:8,marginBottom:16}}>
+      <div style={{display:"flex",gap:8,overflowX:"auto",paddingBottom:4,marginBottom:16}}>
         {agents.map(a => (
-          <Card key={a.id} hover p="14px">
+          <Card key={a.id} hover p="10px 14px" style={{minWidth:160,flex:"0 0 auto"}}>
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
               <span style={{fontSize:11,fontWeight:600,color:C.t1}}>{a.name}</span>
               <Pill s={a.status} glow={a.status==="active"} />
@@ -301,7 +296,7 @@ function OverviewTab() {
         ))}
       </div>
 
-      <div style={{display:"grid",gridTemplateColumns:"clamp(280px,30%,350px) 1fr)",gap:S.lg,alignItems:"start"}}>
+      <div style={{display:"grid",gridTemplateColumns:"300px 1fr",gap:14,alignItems:"start"}}>
         <Card p="0">
           <div style={{padding:"10px 14px",borderBottom:"1px solid "+C.bdr,fontSize:12,fontWeight:600,color:C.t1}}>Sessions</div>
           <div style={{maxHeight: Math.min(Math.floor((viewportHeight - 350) / 45), 15) * 45 + 20, overflowY:"auto"}}>
