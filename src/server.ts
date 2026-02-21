@@ -402,9 +402,31 @@ server.post('/api/sync', async (request, reply) => {
     if (runs) {
       for (const r of runs) {
         try {
-          await prisma.$executeRaw`INSERT INTO "Run" (id, source, label, status, "startedAt", duration, model, "contextPct", "tokensIn", "tokensOut", "finishReason") VALUES (${r.id}, ${r.source}, ${r.label}, ${r.status}, ${new Date(r.startedAt)}, ${r.duration}, ${r.model}, ${r.contextPct}, ${r.tokensIn}, ${r.tokensOut}, ${r.finishReason}) ON CONFLICT (id) DO UPDATE SET source = EXCLUDED.source, label = EXCLUDED.label, status = EXCLUDED.status, duration = EXCLUDED.duration, "contextPct" = EXCLUDED."contextPct", "tokensIn" = EXCLUDED."tokensIn", "tokensOut" = EXCLUDED."tokensOut", "finishReason" = EXCLUDED."finishReason"`;
+          const validSources = ['MAIN', 'SUBAGENT', 'CRON'];
+          const validStatuses = ['queued', 'running', 'finished', 'failed'];
+          const validFinish = ['stop', 'tool_calls', 'error', 'length'];
+          const source = validSources.includes(r.source) ? r.source : 'MAIN';
+          const status = validStatuses.includes(r.status) ? r.status : 'queued';
+          const finish = r.finishReason && validFinish.includes(r.finishReason) ? r.finishReason : undefined;
+          
+          await prisma.run.upsert({
+            where: { id: r.id },
+            update: {
+              source, label: r.label, status, model: r.model,
+              contextPct: r.contextPct || 0, tokensIn: r.tokensIn || 0,
+              tokensOut: r.tokensOut || 0, duration: r.duration,
+              ...(finish ? { finishReason: finish } : {}),
+            },
+            create: {
+              id: r.id, source, label: r.label, status,
+              startedAt: new Date(r.startedAt), duration: r.duration,
+              model: r.model, contextPct: r.contextPct || 0,
+              tokensIn: r.tokensIn || 0, tokensOut: r.tokensOut || 0,
+              ...(finish ? { finishReason: finish } : {}),
+            },
+          });
         } catch (e: any) {
-          console.log('Run sync warning:', e.message);
+          console.log('Run sync warning:', r.id, e.message);
         }
       }
     }
