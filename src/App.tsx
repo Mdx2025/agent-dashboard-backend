@@ -204,9 +204,9 @@ function Chip({label, active, onClick}) {
 
 function KPI({label, value, sub, trend}) {
   return (
-    <Card hover style={{flex:1,minWidth:0}}>
+    <Card hover style={{flex:1,minWidth:0,border:"1px solid "+C.bdr}}>
       <div style={{fontSize:10,color:C.t3,textTransform:"uppercase",letterSpacing:0.7,marginBottom:8}}>{label}</div>
-      <div style={{fontSize:24,fontWeight:700,color:C.t1,lineHeight:1.2,marginBottom:4}}>{value}</div>
+      <div style={{fontSize:28,fontWeight:700,color:C.t1,lineHeight:1.2,marginBottom:4}}>{value}</div>
       {sub && <div style={{fontSize:10,color:C.t3,marginTop:6}}>{sub}</div>}
       {trend && <div style={{fontSize:10,color:trend.startsWith("+")?C.ok:C.t3,marginTop:6,fontWeight:500}}>{trend}</div>}
     </Card>
@@ -215,8 +215,8 @@ function KPI({label, value, sub, trend}) {
 
 function CtxBar({p}) {
   return (
-    <div style={{display:"flex",alignItems:"center",gap:5}}>
-      <div style={{width:38,height:3,borderRadius:2,background:"rgba(255,255,255,.05)",overflow:"hidden"}}>
+    <div style={{display:"flex",alignItems:"center",gap:6}}>
+      <div style={{width:60,height:4,borderRadius:2,background:"rgba(255,255,255,.05)",overflow:"hidden"}}>
         <div style={{width:p+"%",height:"100%",borderRadius:2,background:p>80?C.er:p>60?C.wn:C.acc}} />
       </div>
       <span style={{fontSize:10,color:C.t3}}>{p}%</span>
@@ -237,8 +237,8 @@ function DGrid({items}) {
   );
 }
 
-const TH = {padding:"9px 11px",textAlign:"left",fontWeight:500,color:C.t3,fontSize:10,textTransform:"uppercase",whiteSpace:"nowrap",background:C.bgS};
-const TD = {padding:"8px 11px",whiteSpace:"nowrap"};
+const TH = {padding:"12px 16px",textAlign:"left",fontWeight:500,color:C.t3,fontSize:10,textTransform:"uppercase",whiteSpace:"nowrap",background:C.bgS};
+const TD = {padding:"12px 16px",whiteSpace:"nowrap"};
 
 function TRow({children, onClick}) {
   return (
@@ -323,14 +323,14 @@ function OverviewTab() {
   return (
     <div>
       <h1 style={{fontSize:17,fontWeight:600,color:C.t1,marginBottom:4}}>Overview</h1>
-      <span style={{fontSize:11,color:C.t3}}>Real-time agent operations</span>
+      <span style={{fontSize:11,color:C.t3}}>Last updated: {new Date().toLocaleTimeString()} • {activeSessions} active</span>
 
       <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:12,margin:"20px 0"}}>
         <KPI label="Sessions" value={sessions.length} sub={`${activeSessions} active`} />
         <KPI label="Tokens In" value={fm(totalTokensIn)} sub="24h" />
         <KPI label="Tokens Out" value={fm(totalTokensOut)} sub="24h" />
         <KPI label="Cost" value={"$" + totalCost.toFixed(2)} sub="24h" />
-        <Card hover style={{flex:1}}>
+        <Card hover style={{flex:1,border:"1px solid "+C.bdr}}>
           <div style={{fontSize:10,color:C.t3,textTransform:"uppercase",marginBottom:6}}>MAIN MODEL</div>
           <div style={{fontSize:13,fontWeight:600,color:C.cy}}>{agents[0]?.model || 'N/A'}</div>
           <div style={{fontSize:10,color:C.t3,marginTop:4}}>{agents.length} agents</div>
@@ -340,7 +340,7 @@ function OverviewTab() {
       <SLbl>Agents</SLbl>
       <div style={{display:"flex",gap:8,overflowX:"auto",paddingBottom:8,marginBottom:20}}>
         {agents.map(a => (
-          <Card key={a.id} hover p="12px 16px" style={{minWidth:160,flex:"0 0 auto"}}>
+          <Card key={a.id} hover p="12px 16px" style={{minWidth:160,flex:"0 0 auto",border:"1px solid "+C.bdr}}>
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
               <span style={{fontSize:11,fontWeight:600,color:C.t1}}>{a.name}</span>
               <Pill s={a.status} glow={a.status==="active"} />
@@ -355,7 +355,7 @@ function OverviewTab() {
       </div>
 
       <div style={{display:"grid",gridTemplateColumns:"300px 1fr",gap:16,alignItems:"stretch"}}>
-        <Card p="0" style={{display:"flex",flexDirection:"column",padding:"16px"}}>
+        <Card p="0" style={{display:"flex",flexDirection:"column",padding:"16px",border:"1px solid "+C.bdr}}>
           <div style={{padding:"0 0 12px 0",borderBottom:"1px solid "+C.bdr,fontSize:12,fontWeight:600,color:C.t1}}>Sessions</div>
           <div style={{flex:1,overflowY:"auto",maxHeight: Math.min(Math.floor((viewportHeight - 250) / 45), 25) * 45 + 20,padding:"8px 0 0 0"}}>
             {sessions.slice(0, Math.min(Math.floor((viewportHeight - 250) / 45), 25)).map(s => (
@@ -371,7 +371,7 @@ function OverviewTab() {
             ))}
           </div>
         </Card>
-        <Card p="0" style={{display:"flex",flexDirection:"column",overflow:"hidden",padding:"16px"}}>
+        <Card p="0" style={{display:"flex",flexDirection:"column",overflow:"hidden",padding:"16px",border:"1px solid "+C.bdr}}>
           <div style={{padding:"0 0 12px 0",borderBottom:"1px solid "+C.bdr,fontSize:12,fontWeight:600,color:C.t1}}>Recent Runs</div>
           <div style={{flex:1,overflow:"auto",maxHeight: Math.min(Math.floor((viewportHeight - 250) / 48), 30) * 48 + 50,padding:"8px 0 0 0"}}>
             <table style={{width:"100%",borderCollapse:"collapse",fontSize:11}}>
