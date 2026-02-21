@@ -270,10 +270,10 @@ function OverviewTab() {
   // Calculate items per page: viewport - (header 80 + KPIs 80 + Agents 100 + Sessions header 40) = available
   const ROW_HEIGHT = 48; // Height of each run row
   const HEADER_SPACE = 250; // Reduced header space to allow more items (was 300)
-  const MAX_RUNS = 30; // Increased to fill all viewport space (was 16)
+  const MAX_RUNS = 40; // Increased to 40 runs with scroll (was 30)
   const availableHeight = viewportHeight - HEADER_SPACE;
   const runsPerPage = Math.min(Math.floor(availableHeight / ROW_HEIGHT), MAX_RUNS);
-  const displayRuns = runs.slice(0, Math.max(runsPerPage, 5)); // Minimum 5 items
+  const displayRuns = runs.slice(0, Math.max(runsPerPage, 20)); // Minimum 20 items for scroll
 
   useEffect(() => {
     async function loadData() {
@@ -373,7 +373,7 @@ function OverviewTab() {
         </Card>
         <Card p="0" style={{display:"flex",flexDirection:"column",overflow:"hidden"}}>
           <div style={{padding:"12px 16px",borderBottom:"1px solid "+C.bdr,fontSize:12,fontWeight:600,color:C.t1}}>Recent Runs</div>
-          <div style={{flex:1,overflowX:"auto"}}>
+          <div style={{flex:1,overflow:"auto",maxHeight: Math.min(Math.floor((viewportHeight - 250) / 48), 30) * 48 + 50}}>
             <table style={{width:"100%",borderCollapse:"collapse",fontSize:11}}>
               <thead><tr style={{borderBottom:"1px solid "+C.bdr}}>
                 {["Src","Label","Status","When","Model","Ctx","Tokens"].map(h => <th key={h} style={TH}>{h}</th>)}
