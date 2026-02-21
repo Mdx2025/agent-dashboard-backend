@@ -391,10 +391,27 @@ server.post('/api/sync', async (request, reply) => {
     if (sessions) {
       for (const s of sessions) {
         try {
-          // Use simple INSERT to avoid Prisma schema issues
-          await prisma.$executeRaw`INSERT INTO "Session" (id, status, "startedAt", "lastSeenAt", "tokens24h", model, "agentName") VALUES (${s.id}, ${s.status}, ${new Date(s.startedAt)}, ${new Date(s.lastSeenAt)}, ${s.tokens24h}, ${s.model}, ${s.agent || s.agentName}) ON CONFLICT (id) DO UPDATE SET status = EXCLUDED.status, "lastSeenAt" = EXCLUDED."lastSeenAt", "tokens24h" = EXCLUDED."tokens24h"`;
+          await prisma.session.upsert({
+            where: { id: s.id },
+            update: {
+              status: s.status,
+              lastSeenAt: new Date(s.lastSeenAt),
+              tokens24h: s.tokens24h || 0,
+              model: s.model,
+              agentName: s.agent || s.agentName,
+            },
+            create: {
+              id: s.id,
+              status: s.status,
+              startedAt: new Date(s.startedAt),
+              lastSeenAt: new Date(s.lastSeenAt),
+              tokens24h: s.tokens24h || 0,
+              model: s.model,
+              agentName: s.agent || s.agentName,
+            },
+          });
         } catch (e: any) {
-          console.log('Session sync warning:', e.message);
+          console.log('Session sync warning:', s.id, e.message);
         }
       }
     }
