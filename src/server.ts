@@ -389,6 +389,9 @@ server.post('/api/sync', async (request, reply) => {
     }
     
     if (sessions) {
+      // Clear all existing sessions before sync
+      await prisma.session.deleteMany();
+
       for (const s of sessions) {
         try {
           await prisma.session.upsert({
@@ -417,6 +420,9 @@ server.post('/api/sync', async (request, reply) => {
     }
     
     if (runs) {
+      // Clear all existing runs before sync to ensure only real data
+      await prisma.run.deleteMany();
+
       for (const r of runs) {
         try {
           const validSources = ['MAIN', 'SUBAGENT', 'CRON'];
@@ -425,7 +431,7 @@ server.post('/api/sync', async (request, reply) => {
           const source = validSources.includes(r.source) ? r.source : 'MAIN';
           const status = validStatuses.includes(r.status) ? r.status : 'queued';
           const finish = r.finishReason && validFinish.includes(r.finishReason) ? r.finishReason : undefined;
-          
+
           await prisma.run.upsert({
             where: { id: r.id },
             update: {
