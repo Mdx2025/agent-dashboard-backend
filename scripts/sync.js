@@ -277,33 +277,23 @@ async function generateDemoData(agents) {
     console.log('Could not fetch existing runs');
   }
   
-  // Always ensure at least 12 runs for proper dashboard layout
-  const runLabels = [
-    'Deploy frontend fixes', 'Health check automation', 'Generate weekly report',
-    'Review PR #145', 'Database backup', 'Sync agent configs',
-    'Analyze performance', 'Update dependencies', 'Metrics collection',
-    'Optimize DB queries', 'SSL cert renewal', 'Cache warmup',
-    'Log rotation', 'Memory profiling', 'API rate limit check'
-  ];
-  const runSources = ['MAIN', 'SUBAGENT', 'CRON'];
-  const runStatuses = ['queued', 'running', 'finished', 'failed'];
-  
-  while (runs.length < 12) {
-    const agent = agents[Math.floor(Math.random() * agents.length)];
-    const idx = runs.length;
-    runs.push({
-      id: `run_${String(idx + 1).padStart(3, '0')}`,
-      source: runSources[Math.floor(Math.random() * runSources.length)],
-      label: runLabels[idx % runLabels.length],
-      status: runStatuses[Math.floor(Math.random() * runStatuses.length)],
-      startedAt: Date.now() - Math.floor(Math.random() * 86400000 * 3),
-      duration: Math.floor(Math.random() * 60000),
-      model: agent.model,
-      contextPct: Math.floor(Math.random() * 80),
-      tokensIn: Math.floor(Math.random() * 5000),
-      tokensOut: Math.floor(Math.random() * 2000),
-      finishReason: ['stop', 'tool_calls'][Math.floor(Math.random() * 2)],
-    });
+  if (runs.length === 0) {
+    for (let i = 0; i < 10; i++) {
+      const agent = agents[Math.floor(Math.random() * agents.length)];
+      runs.push({
+        id: `run_${Math.random().toString(36).substr(2, 9)}`,
+        source: Math.random() > 0.5 ? 'CRON' : 'MAIN',
+        label: `Task ${i + 1}`,
+        status: ['queued', 'running', 'finished', 'failed'][Math.floor(Math.random() * 4)],
+        startedAt: Date.now() - Math.random() * 86400000,
+        duration: Math.floor(Math.random() * 60000),
+        model: agent.model,
+        contextPct: Math.floor(Math.random() * 100),
+        tokensIn: Math.floor(Math.random() * 5000),
+        tokensOut: Math.floor(Math.random() * 2000),
+        finishReason: ['stop', 'tool_calls', 'error', 'length'][Math.floor(Math.random() * 4)],
+      });
+    }
   }
   
   return { sessions, runs };
