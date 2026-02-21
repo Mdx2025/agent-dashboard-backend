@@ -119,7 +119,7 @@ server.get('/api/agents', async () => {
 server.get('/api/sessions', async () => {
   const sessions = await prisma.session.findMany({
     orderBy: { lastSeenAt: 'desc' },
-    take: 50
+    take: 100 // Increased from 50
   });
   return sessions.map(s => ({
     id: s.id,
@@ -136,7 +136,7 @@ server.get('/api/sessions', async () => {
 server.get('/api/runs', async () => {
   const runs = await prisma.run.findMany({
     orderBy: { startedAt: 'desc' },
-    take: 50
+    take: 200 // Increased from 50 to show more history
   });
   return runs.map(r => ({
     id: r.id,

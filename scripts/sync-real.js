@@ -10,7 +10,9 @@ const https = require('https');
 
 const BACKEND_URL = 'https://agent-dashboard-backend-production.up.railway.app';
 const AGENTS_DIR = '/home/clawd/.openclaw/agents';
-const MAX_RUN_AGE_HOURS = 24;
+const MAX_RUN_AGE_HOURS = 168; // 7 days (was 24h)
+const MAX_RUNS = 200; // Increased from 50 to show more history
+const MAX_SESSIONS = 100; // Increased from 50
 
 /**
  * Extract runs from session JSONL files
@@ -257,19 +259,20 @@ async function main() {
 
   console.log(`Extracted: ${runs.length} runs, ${sessions.length} sessions`);
 
-  // Filter old runs (keep last 24h) and sort by most recent
+  // Filter old runs (keep last 7 days) and sort by most recent
   const cutoff = Date.now() - (MAX_RUN_AGE_HOURS * 3600000);
   const recentRuns = runs
     .filter(r => r.startedAt > cutoff)
     .sort((a, b) => b.startedAt - a.startedAt)
-    .slice(0, 50); // Limit to 50 most recent
+    .slice(0, MAX_RUNS);
+  console.log(`Total runs extracted: ${runs.length}`);
   console.log(`Recent runs (last ${MAX_RUN_AGE_HOURS}h): ${recentRuns.length}`);
 
   // Sync to backend
   try {
-    const result = await syncToBackend(recentRuns, sessions.slice(0, 50));
+    const result = await syncToBackend(recentRuns, sessions.slice(0, MAX_SESSIONS));
     console.log('✅ Sync completed:', result);
-    console.log(`Synced: ${recentRuns.length} runs, ${Math.min(sessions.length, 50)} sessions`);
+    console.log(`Synced: ${recentRuns.length} runs, ${Math.min(sessions.length, MAX_SESSIONS)} sessions`);
   } catch (e) {
     console.error('❌ Sync failed:', e.message);
     process.exit(1);
