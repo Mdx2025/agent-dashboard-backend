@@ -85,21 +85,21 @@ const df = ms => {
    ============================================ */
 
 const SM = {
-  active:{bg:C.okD,b:C.okB,c:"#4ade80",d:C.ok},
-  healthy:{bg:C.okD,b:C.okB,c:"#4ade80",d:C.ok},
-  online:{bg:C.okD,b:C.okB,c:"#4ade80",d:C.ok},
-  ok:{bg:C.okD,b:C.okB,c:"#4ade80",d:C.ok},
-  pass:{bg:C.okD,b:C.okB,c:"#4ade80",d:C.ok},
-  running:{bg:C.accD,b:"rgba(59,130,246,.3)",c:C.accB,d:C.acc},
-  idle:{bg:"rgba(148,163,184,.08)",b:"rgba(148,163,184,.2)",c:"#94a3b8",d:"#64748b"},
-  finished:{bg:"rgba(34,197,94,.06)",b:"rgba(34,197,94,.18)",c:"#86efac",d:C.ok},
-  warn:{bg:C.wnD,b:C.wnB,c:"#fbbf24",d:C.wn},
-  degraded:{bg:C.wnD,b:C.wnB,c:"#fbbf24",d:C.wn},
-  queued:{bg:C.wnD,b:C.wnB,c:"#fbbf24",d:C.wn},
-  error:{bg:C.erD,b:C.erB,c:"#f87171",d:C.er},
-  failed:{bg:C.erD,b:C.erB,c:"#f87171",d:C.er},
-  fail:{bg:C.erD,b:C.erB,c:"#f87171",d:C.er},
-  offline:{bg:C.erD,b:C.erB,c:"#f87171",d:C.er}
+  active:{bg:"#052e16",b:"#166534",c:"#22c55e",d:"#16a34a",label:"ACTIVE"},
+  healthy:{bg:"#052e16",b:"#166534",c:"#22c55e",d:"#16a34a",label:"HEALTHY"},
+  online:{bg:"#052e16",b:"#166534",c:"#22c55e",d:"#16a34a",label:"ONLINE"},
+  ok:{bg:"#052e16",b:"#166534",c:"#22c55e",d:"#16a34a",label:"OK"},
+  pass:{bg:"#052e16",b:"#166534",c:"#22c55e",d:"#16a34a",label:"PASS"},
+  running:{bg:"#1e3a5f",b:"#1d4ed8",c:"#60a5fa",d:"#3b82f6",label:"RUNNING"},
+  idle:{bg:"#1f2937",b:"#374151",c:"#9ca3af",d:"#6b7280",label:"IDLE"},
+  finished:{bg:"#052e16",b:"#166534",c:"#22c55e",d:"#16a34a",label:"FINISHED"},
+  warn:{bg:"#451a03",b:"#b45309",c:"#fbbf24",d:"#d97706",label:"WARN"},
+  degraded:{bg:"#451a03",b:"#b45309",c:"#fbbf24",d:"#d97706",label:"DEGRADED"},
+  queued:{bg:"#451a03",b:"#b45309",c:"#fbbf24",d:"#d97706",label:"QUEUED"},
+  error:{bg:"#450a0a",b:"#dc2626",c:"#f87171",d:"#ef4444",label:"ERROR"},
+  failed:{bg:"#450a0a",b:"#dc2626",c:"#f87171",d:"#ef4444",label:"FAILED"},
+  fail:{bg:"#450a0a",b:"#dc2626",c:"#f87171",d:"#ef4444",label:"FAIL"},
+  offline:{bg:"#450a0a",b:"#dc2626",c:"#f87171",d:"#ef4444",label:"OFFLINE"}
 } as const;
 
 /* ============================================
@@ -126,39 +126,154 @@ async function apiCall(endpoint, options = {}) {
    UI COMPONENTS
    ============================================ */
 
-// Status Pill Component
+// Status Pill Component - Improved with better visual hierarchy
 function Pill({s, glow}) {
   const st = SM[s] || SM.idle;
+  const isActive = s === 'active' || s === 'running';
   return (
-    <span style={{display:"inline-flex",alignItems:"center",gap:SPACING.xs,padding:`${SPACING.xxs} ${SPACING.sm}`,background:st.bg,border:"1px solid "+st.b,borderRadius:RADIUS.md,fontSize:FONT_SIZE.sm,fontWeight:500,color:st.c}}>
-      <span style={{width:5,height:5,borderRadius:"50%",background:st.d,boxShadow:glow?"0 0 6px "+st.d:"none",animation:glow?"pulse 1.5s infinite":"none"}} />
-      {s}
+    <span style={{
+      display:"inline-flex",
+      alignItems:"center",
+      gap:"6px",
+      padding:"4px 10px",
+      background:st.bg,
+      border:"1px solid "+st.b,
+      borderRadius:"6px",
+      fontSize:"10px",
+      fontWeight:600,
+      color:st.c,
+      textTransform:"uppercase",
+      letterSpacing:"0.5px",
+      boxShadow: isActive && glow ? `0 0 8px ${st.d}40` : 'none',
+    }}>
+      <span style={{
+        width:"6px",
+        height:"6px",
+        borderRadius:"50%",
+        background:st.d,
+        boxShadow: isActive && glow ? `0 0 6px ${st.d}` : 'none',
+        animation: isActive && glow ? "pulse 1.5s infinite" : "none",
+        flexShrink:0,
+      }} />
+      {st.label || s}
+    </span>
+  );
+}
+
+// Toggle Badge Component - ON/OFF with improved visual
+function ToggleBadge({enabled}) {
+  return (
+    <span style={{
+      display:"inline-flex",
+      alignItems:"center",
+      gap:"5px",
+      padding:"3px 8px",
+      background: enabled ? "rgba(34,197,94,0.15)" : "rgba(239,68,68,0.15)",
+      border:`1px solid ${enabled ? "rgba(34,197,94,0.4)" : "rgba(239,68,68,0.4)"}`,
+      borderRadius:"6px",
+      fontSize:"9px",
+      fontWeight:600,
+      color: enabled ? "#22c55e" : "#f87171",
+      textTransform:"uppercase",
+      letterSpacing:"0.5px",
+    }}>
+      <span style={{
+        width:"5px",
+        height:"5px",
+        borderRadius:"50%",
+        background: enabled ? "#22c55e" : "#f87171",
+        boxShadow: enabled ? "0 0 4px #22c55e" : "0 0 4px #f87171",
+      }} />
+      {enabled ? "ON" : "OFF"}
     </span>
   );
 }
 
 function SrcBadge({s}) {
-  const m = {MAIN:{bg:C.accD,b:"rgba(59,130,246,.3)",c:C.accB},SUBAGENT:{bg:C.puD,b:"rgba(167,139,250,.3)",c:C.pu},CRON:{bg:"rgba(6,182,212,.1)",b:"rgba(6,182,212,.3)",c:"#22d3ee"}};
+  const m = {
+    MAIN:{bg:"rgba(59,130,246,0.15)",b:"rgba(59,130,246,0.4)",c:"#60a5fa",label:"MAIN"},
+    SUBAGENT:{bg:"rgba(167,139,250,0.15)",b:"rgba(167,139,250,0.4)",c:"#a78bfa",label:"SUBAGENT"},
+    CRON:{bg:"rgba(6,182,212,0.15)",b:"rgba(6,182,212,0.4)",c:"#22d3ee",label:"CRON"}
+  };
   const st = m[s] || m.MAIN;
-  return (<span style={{padding:"2px 6px",background:st.bg,border:"1px solid "+st.b,borderRadius:4,fontSize:9,fontWeight:600,color:st.c}}>{s}</span>);
+  return (
+    <span style={{
+      padding:"3px 8px",
+      background:st.bg,
+      border:`1px solid ${st.b}`,
+      borderRadius:"4px",
+      fontSize:"9px",
+      fontWeight:600,
+      color:st.c,
+      textTransform:"uppercase",
+      letterSpacing:"0.5px",
+    }}>
+      {st.label || s}
+    </span>
+  );
 }
 
 function LvlBadge({l}) {
-  const m = {DEBUG:{bg:"rgba(148,163,184,.08)",c:"#94a3b8"},INFO:{bg:C.accD,c:C.accB},WARN:{bg:C.wnD,c:"#fbbf24"},ERROR:{bg:C.erD,c:"#f87171"},FATAL:{bg:"rgba(239,68,68,.2)",c:"#fca5a5"}};
+  const m = {
+    DEBUG:{bg:"rgba(148,163,184,0.1)",c:"#94a3b8",label:"DEBUG"},
+    INFO:{bg:"rgba(59,130,246,0.15)",c:"#60a5fa",label:"INFO"},
+    WARN:{bg:"rgba(245,158,11,0.15)",c:"#fbbf24",label:"WARN"},
+    ERROR:{bg:"rgba(239,68,68,0.15)",c:"#f87171",label:"ERROR"},
+    FATAL:{bg:"rgba(239,68,68,0.25)",c:"#fca5a5",label:"FATAL"}
+  };
   const st = m[l] || m.INFO;
-  return (<span style={{padding:"1px 6px",borderRadius:4,fontSize:9,fontWeight:600,background:st.bg,color:st.c}}>{l}</span>);
+  return (
+    <span style={{
+      padding:"2px 8px",
+      borderRadius:"4px",
+      fontSize:"9px",
+      fontWeight:600,
+      background:st.bg,
+      color:st.c,
+      textTransform:"uppercase",
+      letterSpacing:"0.3px",
+    }}>
+      {st.label || l}
+    </span>
+  );
 }
 
 function PIcon({p}) {
-  const cl = {Anthropic:"#d4a574",Moonshot:"#22c55e",Google:"#fbbf24",OpenAI:"#a78bfa"};
-  return (<span style={{display:"inline-flex",alignItems:"center",justifyContent:"center",width:20,height:20,borderRadius:5,background:(cl[p]||C.acc)+"18",color:cl[p]||C.acc,fontSize:10,fontWeight:700}}>{p[0]}</span>);
+  const cl = {Anthropic:"#d4a574",Moonshot:"#22c55e",Google:"#fbbf24",OpenAI:"#a78bfa",MiniMax:"#f97316",GLM:"#8b5cf6"};
+  return (
+    <span style={{
+      display:"inline-flex",
+      alignItems:"center",
+      justifyContent:"center",
+      width:"22px",
+      height:"22px",
+      borderRadius:"5px",
+      background:`${(cl[p]||C.acc)}18`,
+      color:cl[p]||C.acc,
+      fontSize:"10px",
+      fontWeight:700,
+    }}>
+      {p[0]}
+    </span>
+  );
 }
 
 function Card({children, style, p: pad = "16px", hover, onClick}) {
   const [h, setH] = useState(false);
   return (
     <div onClick={onClick} onMouseEnter={() => setH(true)} onMouseLeave={() => setH(false)}
-      style={{background:h&&hover?C.bgH:C.bgS,backdropFilter:"blur(20px)",border:"1px solid "+(h&&hover?C.bdrH:C.bdr),borderRadius:12,padding:pad,transition:"all 180ms",transform:h&&hover?"translateY(-1px)":"none",boxShadow:h&&hover?"0 8px 32px rgba(0,0,0,.3)":"0 2px 12px rgba(0,0,0,.2)",cursor:onClick?"pointer":"default",...style}}>
+      style={{
+        background: h && hover ? "rgba(18,26,52,0.95)" : "rgba(12,18,35,0.75)",
+        backdropFilter:"blur(20px)",
+        border:`1px solid ${h && hover ? "rgba(59,130,246,0.35)" : "rgba(50,70,120,0.22)"}`,
+        borderRadius:"12px",
+        padding:pad,
+        transition:"all 180ms ease",
+        transform: h && hover ? "translateY(-2px)" : "none",
+        boxShadow: h && hover ? "0 8px 32px rgba(0,0,0,0.4)" : "0 2px 12px rgba(0,0,0,0.2)",
+        cursor:onClick ? "pointer" : "default",
+        ...style
+      }}>
       {children}
     </div>
   );
@@ -201,14 +316,31 @@ function SLbl({children, n}) {
 }
 
 function Chip({label, active, onClick}) {
-  return (<button onClick={onClick} style={{padding:"4px 10px",borderRadius:6,fontSize:10,fontWeight:500,cursor:"pointer",fontFamily:FN,background:active?C.accD:"rgba(255,255,255,.02)",color:active?C.accB:C.t3,border:"1px solid "+(active?"rgba(59,130,246,.35)":"transparent")}}>{label}</button>);
+  return (
+    <button onClick={onClick} style={{
+      padding:"6px 12px",
+      borderRadius:"6px",
+      fontSize:"11px",
+      fontWeight:500,
+      cursor:"pointer",
+      fontFamily:FN,
+      background: active ? "rgba(59,130,246,0.15)" : "rgba(255,255,255,0.03)",
+      color: active ? "#60a5fa" : "#64748b",
+      border: `1px solid ${active ? "rgba(59,130,246,0.4)" : "rgba(255,255,255,0.06)"}`,
+      transition:"all 150ms ease",
+      textTransform:"uppercase",
+      letterSpacing:"0.3px",
+    }}>
+      {label}
+    </button>
+  );
 }
 
 function KPI({label, value, sub, trend}) {
   return (
-    <Card hover style={{flex:1,minWidth:0,border:"1px solid "+C.bdr}}>
-      <div style={{fontSize:10,color:C.t3,textTransform:"uppercase",letterSpacing:0.7,marginBottom:8}}>{label}</div>
-      <div style={{fontSize:28,fontWeight:700,color:C.t1,lineHeight:1.2,marginBottom:4}}>{value}</div>
+    <Card hover style={{flex:1,minWidth:0,border:"1px solid rgba(50,70,120,0.22)"}}>
+      <div style={{fontSize:10,color:C.t3,textTransform:"uppercase",letterSpacing:"0.7px",marginBottom:8,fontWeight:500}}>{label}</div>
+      <div style={{fontSize:28,fontWeight:700,color:C.t1,lineHeight:1.2,marginBottom:4,letterSpacing:"-0.5px"}}>{value}</div>
       {sub && <div style={{fontSize:10,color:C.t3,marginTop:6}}>{sub}</div>}
       {trend && <div style={{fontSize:10,color:trend.startsWith("+")?C.ok:C.t3,marginTop:6,fontWeight:500}}>{trend}</div>}
     </Card>
@@ -541,17 +673,17 @@ function AgentsTab() {
 
   return (
     <div>
-      <h1 style={{fontSize:17,fontWeight:600,color:C.t1,marginBottom:16}}>Agents</h1>
+      <h1 style={{fontSize:20,fontWeight:600,color:C.t1,marginBottom:16,letterSpacing:"-0.3px"}}>Agents</h1>
       <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:12,marginBottom:16}}>
-        <Card p="14px"><div style={{fontSize:10,color:C.t3,marginBottom:6}}>TOTAL</div><div style={{fontSize:22,fontWeight:700,color:C.t1}}>{agents.length}</div></Card>
-        <Card p="14px"><div style={{fontSize:10,color:C.t3,marginBottom:6}}>RUNS 24H</div><div style={{fontSize:22,fontWeight:700,color:C.t1}}>{tR}</div></Card>
-        <Card p="14px"><div style={{fontSize:10,color:C.t3,marginBottom:6}}>ERRORS</div><div style={{fontSize:22,fontWeight:700,color:C.er}}>{agents.reduce((s,a) => s + (a.err24h || 0), 0)}</div></Card>
-        <Card p="14px"><div style={{fontSize:10,color:C.t3,marginBottom:6}}>COST TODAY</div><div style={{fontSize:22,fontWeight:700,color:C.t1}}>${tC.toFixed(2)}</div></Card>
+        <Card p="16px"><div style={{fontSize:10,color:C.t3,marginBottom:6,textTransform:"uppercase",letterSpacing:"0.5px"}}>TOTAL</div><div style={{fontSize:24,fontWeight:700,color:C.t1}}>{agents.length}</div></Card>
+        <Card p="16px"><div style={{fontSize:10,color:C.t3,marginBottom:6,textTransform:"uppercase",letterSpacing:"0.5px"}}>RUNS 24H</div><div style={{fontSize:24,fontWeight:700,color:C.t1}}>{tR}</div></Card>
+        <Card p="16px"><div style={{fontSize:10,color:C.t3,marginBottom:6,textTransform:"uppercase",letterSpacing:"0.5px"}}>ERRORS</div><div style={{fontSize:24,fontWeight:700,color:C.er}}>{agents.reduce((s,a) => s + (a.err24h || 0), 0)}</div></Card>
+        <Card p="16px"><div style={{fontSize:10,color:C.t3,marginBottom:6,textTransform:"uppercase",letterSpacing:"0.5px"}}>COST TODAY</div><div style={{fontSize:24,fontWeight:700,color:C.t1}}>${tC.toFixed(2)}</div></Card>
       </div>
-      <div style={{display:"flex",gap:3,marginBottom:12}}>{["ALL","MAIN","SUBAGENT"].map(t => <Chip key={t} label={t} active={tf===t} onClick={() => setTf(t)} />)}</div>
+      <div style={{display:"flex",gap:8,marginBottom:12}}>{["ALL","MAIN","SUBAGENT"].map(t => <Chip key={t} label={t} active={tf===t} onClick={() => setTf(t)} />)}</div>
       <Card p="0"><div style={{overflowX:"auto"}}>
         <table style={{width:"100%",borderCollapse:"collapse",fontSize:11}}>
-          <thead><tr style={{borderBottom:"1px solid "+C.bdr}}>{["Agent","Type","Status","Model","Runs","Err","Tokens","Cost","Lat"].map(h => <th key={h} style={TH}>{h}</th>)}</tr></thead>
+          <thead><tr style={{borderBottom:"1px solid "+C.bdr}}>{["AGENT","TYPE","STATUS","MODEL","RUNS","ERR","TOKENS","COST","LAT"].map(h => <th key={h} style={TH}>{h}</th>)}</tr></thead>
           <tbody>{ags.map(a => (
             <TRow key={a.id} onClick={() => setSel(a)}>
               <td style={TD}><div style={{fontWeight:600,color:C.t1}}>{a.name}</div><div style={{fontSize:9,color:C.t3}}>{a.id}</div></td>
@@ -602,23 +734,29 @@ function SkillsTab() {
 
   return (
     <div>
-      <h1 style={{fontSize:17,fontWeight:600,color:C.t1,marginBottom:16}}>Skills</h1>
-      <div style={{display:"flex",gap:3,marginBottom:12,flexWrap:"wrap"}}>
+      <h1 style={{fontSize:20,fontWeight:600,color:C.t1,marginBottom:16,letterSpacing:"-0.3px"}}>Skills</h1>
+      <div style={{display:"flex",gap:8,marginBottom:16,flexWrap:"wrap"}}>
         <Chip label="ALL" active={cf==="ALL"} onClick={() => setCf("ALL")} />
         {cats.map(c => <Chip key={c} label={c} active={cf===c} onClick={() => setCf(c)} />)}
       </div>
-      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(280px,1fr))",gap:10}}>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(300px,1fr))",gap:12}}>
         {sk.map(s => (
-          <Card key={s.id} hover onClick={() => setSel(s)} p="12px 16px" style={{opacity:s.enabled?1:0.45}}>
-            <div style={{display:"flex",justifyContent:"space-between",marginBottom:6}}>
-              <div><div style={{fontSize:13,fontWeight:600,color:C.t1}}>{s.name}</div><div style={{fontSize:10,color:C.t3}}>v{s.version || '1.0.0'} · {s.category || 'General'}</div></div>
-              <div style={{display:"flex",gap:4}}><Pill s={s.status} /><span style={{fontSize:9,padding:"2px 6px",borderRadius:4,background:s.enabled?C.okD:C.erD,color:s.enabled?"#4ade80":"#f87171"}}>{s.enabled?"ON":"OFF"}</span></div>
+          <Card key={s.id} hover onClick={() => setSel(s)} p="16px" style={{opacity:s.enabled?1:0.5}}>
+            <div style={{display:"flex",justifyContent:"space-between",marginBottom:10,alignItems:"flex-start"}}>
+              <div>
+                <div style={{fontSize:14,fontWeight:600,color:C.t1,letterSpacing:"-0.2px"}}>{s.name}</div>
+                <div style={{fontSize:10,color:C.t3,marginTop:2}}>v{s.version || '1.0.0'} · {s.category || 'General'}</div>
+              </div>
+              <div style={{display:"flex",gap:6,alignItems:"center",flexShrink:0}}>
+                <Pill s={s.status} />
+                <ToggleBadge enabled={s.enabled} />
+              </div>
             </div>
-            <div style={{fontSize:10,color:C.t3,marginBottom:8}}>{s.description}</div>
-            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:6}}>
-              <div><div style={{fontSize:9,color:C.t4}}>USE 24H</div><div style={{fontSize:12,fontWeight:600,color:C.t1}}>{s.usage24h || 0}</div></div>
-              <div><div style={{fontSize:9,color:C.t4}}>LATENCY</div><div style={{fontSize:12,fontWeight:600,color:C.t1}}>{df(s.latencyAvg)}</div></div>
-              <div><div style={{fontSize:9,color:C.t4}}>ERR%</div><div style={{fontSize:12,fontWeight:600,color:s.errorRate>1?C.wn:C.ok}}>{(s.errorRate || 0).toFixed(1)}%</div></div>
+            <div style={{fontSize:11,color:C.t3,marginBottom:12,lineHeight:1.4}}>{s.description}</div>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8,paddingTop:12,borderTop:"1px solid rgba(255,255,255,0.05)"}}>
+              <div><div style={{fontSize:9,color:C.t4,textTransform:"uppercase",letterSpacing:"0.5px",marginBottom:4}}>USE 24H</div><div style={{fontSize:14,fontWeight:600,color:C.t1}}>{s.usage24h || 0}</div></div>
+              <div><div style={{fontSize:9,color:C.t4,textTransform:"uppercase",letterSpacing:"0.5px",marginBottom:4}}>LATENCY</div><div style={{fontSize:14,fontWeight:600,color:C.t1}}>{df(s.latencyAvg)}</div></div>
+              <div><div style={{fontSize:9,color:C.t4,textTransform:"uppercase",letterSpacing:"0.5px",marginBottom:4}}>ERR%</div><div style={{fontSize:14,fontWeight:600,color:s.errorRate>1?C.wn:C.ok}}>{(s.errorRate || 0).toFixed(1)}%</div></div>
             </div>
           </Card>
         ))}
