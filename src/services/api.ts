@@ -2,7 +2,8 @@
 
 // Base URL for the backend API
 // Uses environment variable in production, falls back to hardcoded URL
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://agent-dashboard-backend-production.up.railway.app/api';
+// NOTE: API base should NOT include /api - it's added per-endpoint
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://agent-dashboard-backend-production.up.railway.app';
 
 /**
  * A simple wrapper around fetch for making API calls.
