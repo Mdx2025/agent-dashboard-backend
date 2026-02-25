@@ -106,10 +106,12 @@ const SM = {
    API & HELPERS
    ============================================ */
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL || 'https://agent-dashboard-backend-production.up.railway.app/api';
+const API_BASE = import.meta.env.VITE_API_URL || 'https://agent-dashboard-backend-production.up.railway.app';
 
 async function apiCall(endpoint, options = {}) {
-  const res = await fetch(`${API_BASE}${endpoint}`, {
+  // Ensure /api prefix if not present
+  const apiEndpoint = endpoint.startsWith('/api') ? endpoint : `/api${endpoint}`;
+  const res = await fetch(`${API_BASE}${apiEndpoint}`, {
     ...options,
     headers: {
       'Content-Type': 'application/json',
