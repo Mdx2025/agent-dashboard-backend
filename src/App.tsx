@@ -601,21 +601,31 @@ function TokenUsageTab() {
       </div>
 
       <Card p="0" style={{overflow:"hidden",width:"100%"}}>
-        <div style={{overflowX:"auto"}}>
-          <table style={{width:"100%",minWidth:800,borderCollapse:"collapse",fontSize:11}}>
+        <div style={{overflowX:"auto",width:"100%"}}>
+          <table style={{width:"100%",borderCollapse:"collapse",fontSize:11,tableLayout:"fixed"}}>
+            <colgroup>
+              <col style={{width:"140px"}} />
+              <col style={{width:"50px"}} />
+              <col style={{width:"18%"}} />
+              <col style={{width:"12%"}} />
+              <col style={{width:"12%"}} />
+              <col style={{width:"8%"}} />
+              <col style={{width:"8%"}} />
+              <col style={{width:"auto"}} />
+            </colgroup>
             <thead><tr style={{borderBottom:"1px solid "+C.bdr}}>
-              {["Timestamp","","Model","Agent","Tokens","Cost","Speed","Finish"].map((h,i) => <th key={i} style={{...TH,padding:"10px 14px",width:i===0?"140px":i===1?"40px":i===2?"140px":i===3?"120px":i===4?"100px":i===5?"80px":i===6?"70px":"auto"}}>{h}</th>)}
+              {["Timestamp","","Model","Agent","Tokens","Cost","Speed","Finish"].map((h,i) => <th key={i} style={{...TH,padding:"10px 14px",textAlign:i<=1?"left":"center"}}>{h}</th>)}
             </tr></thead>
             <tbody>{fl.map(r => (
               <TRow key={r.id} onClick={() => setSel(r)}>
-                <td style={{...TD,padding:"10px 14px",color:C.t2,fontVariantNumeric:"tabular-nums"}}>{new Date(r.timestamp).toLocaleDateString("en-US",{month:"short",day:"numeric"})}, {new Date(r.timestamp).toLocaleTimeString("en-US",{hour12:true,hour:"2-digit",minute:"2-digit"})}</td>
-                <td style={{...TD,padding:"10px 8px"}}><PIcon p={r.provider} /></td>
-                <td style={{...TD,padding:"10px 14px"}}><span style={{color:C.accB,fontWeight:600}}>{r.model}</span></td>
-                <td style={{...TD,padding:"10px 14px",color:C.t2}}>{r.agent}</td>
-                <td style={{...TD,padding:"10px 14px",fontVariantNumeric:"tabular-nums"}}><span style={{color:C.t1}}>{(r.tokensIn || 0).toLocaleString()}</span><span style={{color:C.t4,margin:"0 4px"}}>-</span><span style={{color:C.t2}}>{(r.tokensOut || 0).toLocaleString()}</span></td>
-                <td style={{...TD,padding:"10px 14px",color:C.ok,fontWeight:500}}>$ {(r.cost || 0).toFixed(4)}</td>
-                <td style={{...TD,padding:"10px 14px",color:C.t2}}>{r.speed} tps</td>
-                <td style={{...TD,padding:"10px 14px"}}><span style={{color:C.t3}}>{r.finishReason || "—"}</span></td>
+                <td style={{...TD,padding:"10px 14px",color:C.t2,fontVariantNumeric:"tabular-nums",textAlign:"left"}}>{new Date(r.timestamp).toLocaleDateString("en-US",{month:"short",day:"numeric"})}, {new Date(r.timestamp).toLocaleTimeString("en-US",{hour12:true,hour:"2-digit",minute:"2-digit"})}</td>
+                <td style={{...TD,padding:"10px 8px",textAlign:"center"}}><PIcon p={r.provider} /></td>
+                <td style={{...TD,padding:"10px 14px",textAlign:"center"}}><span style={{color:C.accB,fontWeight:600}}>{r.model}</span></td>
+                <td style={{...TD,padding:"10px 14px",color:C.t2,textAlign:"center"}}>{r.agent}</td>
+                <td style={{...TD,padding:"10px 14px",fontVariantNumeric:"tabular-nums",textAlign:"center"}}><span style={{color:C.t1}}>{(r.tokensIn || 0).toLocaleString()}</span><span style={{color:C.t4,margin:"0 4px"}}>-</span><span style={{color:C.t2}}>{(r.tokensOut || 0).toLocaleString()}</span></td>
+                <td style={{...TD,padding:"10px 14px",color:C.ok,fontWeight:500,textAlign:"center"}}>$ {(r.cost || 0).toFixed(4)}</td>
+                <td style={{...TD,padding:"10px 14px",color:C.t2,textAlign:"center"}}>{r.speed} tps</td>
+                <td style={{...TD,padding:"10px 14px",textAlign:"center"}}><span style={{color:C.t3}}>{r.finishReason || "—"}</span></td>
               </TRow>
             ))}</tbody>
           </table>
