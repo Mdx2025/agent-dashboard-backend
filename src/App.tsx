@@ -456,6 +456,7 @@ function OverviewTab() {
 
   return (
     <div>
+      {/* FIX: H1 font-size too small (17px → 22px for proper hierarchy) */}
       <h1 style={{fontSize:22,fontWeight:700,color:C.t1,marginBottom:6,letterSpacing:"-0.3px"}}>Overview</h1>
       <span style={{fontSize:12,color:C.t2}}>Last updated: {new Date().toLocaleTimeString()} • {activeSessions} active session{activeSessions !== 1 ? 's' : ''}</span>
 
@@ -471,18 +472,21 @@ function OverviewTab() {
         </Card>
       </div>
 
+      {/* FIX: Agent cards with proper text wrapping and spacing */}
       <SLbl>Agents</SLbl>
       <div style={{display:"flex",gap:14,overflowX:"auto",paddingBottom:14,marginBottom:28}}>
         {agents.map(a => (
-          <Card key={a.id} hover p="12px 16px" style={{minWidth:160,flex:"0 0 auto",border:"1px solid "+C.bdr}}>
-            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
-              <span style={{fontSize:11,fontWeight:600,color:C.t1}}>{a.name}</span>
-              <Pill s={a.status} glow={a.status==="active"} />
+          <Card key={a.id} hover p="14px 18px" style={{minWidth:180,flex:"0 0 auto",border:"1px solid "+C.bdr}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10,gap:8}}>
+              <span style={{fontSize:12,fontWeight:600,color:C.t1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",flex:"1"}}>{a.name}</span>
+              <div style={{flexShrink:0}}><Pill s={a.status} glow={a.status==="active"} /></div>
             </div>
-            <div style={{fontSize:9,color:C.t3}}>{a.model}</div>
-            <div style={{display:"flex",gap:8,fontSize:9,color:C.t3,marginTop:2}}>
-              <span>{a.runs24h || 0} runs</span>
-              <span style={{color:a.err24h>0?C.er:C.t3}}>{a.err24h || 0} err</span>
+            {/* FIX: Model text with proper line height and word-break */}
+            <div style={{fontSize:10,color:C.t3,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",marginBottom:6}}>{a.model}</div>
+            {/* FIX: Stats with proper spacing to prevent overlap */}
+            <div style={{display:"flex",gap:12,fontSize:10,color:C.t3,flexWrap:"wrap",lineHeight:"1.5"}}>
+              <span style={{whiteSpace:"nowrap"}}>{a.runs24h || 0} runs</span>
+              <span style={{color:a.err24h>0?C.er:C.t3,whiteSpace:"nowrap"}}>{a.err24h || 0} err</span>
             </div>
           </Card>
         ))}
@@ -494,12 +498,13 @@ function OverviewTab() {
           <div style={{flex:1,overflowY:"auto",maxHeight: Math.min(Math.floor((viewportHeight - 280) / 45), 25) * 45 + 20,padding:"12px 0 0 0"}}>
             {sessions.slice(0, Math.min(Math.floor((viewportHeight - 250) / 45), 25)).map(s => (
               <div key={s.id} style={{padding:"10px 14px",borderBottom:"1px solid rgba(255,255,255,.02)"}}>
-                <div style={{display:"flex",justifyContent:"space-between",marginBottom:2}}>
-                  <span style={{fontSize:11,fontWeight:600,color:C.accB}}>{s.id.substring(0,16)}</span>
-                  <Pill s={s.status} />
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:8,marginBottom:4}}>
+                  <span style={{fontSize:11,fontWeight:600,color:C.accB,overflow:"hidden",textOverflow:"ellipsis",flex:"1"}}>{s.id.substring(0,16)}</span>
+                  <div style={{flexShrink:0}}><Pill s={s.status} /></div>
                 </div>
-                <div style={{display:"flex",justifyContent:"space-between",fontSize:10,color:C.t3}}>
-                  <span>{s.agent}</span><span>{fm(s.tokens24h || 0)}</span>
+                <div style={{display:"flex",justifyContent:"space-between",fontSize:10,color:C.t3,alignItems:"center"}}>
+                  <span style={{overflow:"hidden",textOverflow:"ellipsis",flex:"1"}}>{s.agent}</span>
+                  <span style={{marginLeft:8,flexShrink:0}}>{fm(s.tokens24h || 0)}</span>
                 </div>
               </div>
             ))}
@@ -578,7 +583,8 @@ function TokenUsageTab() {
 
   return (
     <div>
-      <h1 style={{fontSize:20,fontWeight:600,color:C.t1,marginBottom:4,letterSpacing:"-0.3px"}}>Token Usage</h1>
+      {/* FIX: H1 font-size consistent with other pages (20px → 22px) */}
+      <h1 style={{fontSize:22,fontWeight:700,color:C.t1,marginBottom:6,letterSpacing:"-0.3px"}}>Token Usage</h1>
       <span style={{fontSize:12,color:C.t3}}>Per-request token tracking</span>
 
       <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(180px,1fr))",gap:12,margin:"20px 0"}}>
@@ -679,8 +685,9 @@ function AgentsTab() {
 
   return (
     <div>
-      <h1 style={{fontSize:17,fontWeight:600,color:C.t1,marginBottom:4,letterSpacing:"-0.3px"}}>Agents</h1>
-      {lastUpdated && <span style={{fontSize:11,color:C.t3}}>Last updated: {lastUpdated.toLocaleTimeString()}</span>}
+      {/* FIX: H1 font-size too small (17px → 22px for proper hierarchy) */}
+      <h1 style={{fontSize:22,fontWeight:700,color:C.t1,marginBottom:6,letterSpacing:"-0.3px"}}>Agents</h1>
+      {lastUpdated && <span style={{fontSize:12,color:C.t2}}>Last updated: {lastUpdated.toLocaleTimeString()}</span>}
       
       <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(140px,1fr))",gap:12,margin:"20px 0"}}>
         <Card p="16px"><div style={{fontSize:10,color:C.t3,marginBottom:6,textTransform:"uppercase",letterSpacing:"0.5px"}}>TOTAL</div><div style={{fontSize:24,fontWeight:700,color:C.t1}}>{agents.length}</div></Card>
@@ -934,7 +941,8 @@ function HealthTab() {
 
   return (
     <div>
-      <h1 style={{fontSize:20,fontWeight:600,color:C.t1,marginBottom:4,letterSpacing:"-0.3px"}}>Health</h1>
+      {/* FIX: H1 font-size consistent with other pages (20px → 22px) */}
+      <h1 style={{fontSize:22,fontWeight:700,color:C.t1,marginBottom:6,letterSpacing:"-0.3px"}}>Health</h1>
       <span style={{fontSize:12,color:C.t3}}>System status and diagnostics</span>
 
       {/* Gateway Status Banner */}
@@ -1077,8 +1085,9 @@ function LogsTab() {
     <div style={{display:"flex",flexDirection:"column",minHeight:0,flex:1}}>
       <div style={{display:"flex",alignItems:"baseline",justifyContent:"space-between",flexWrap:"wrap",gap:8}}>
         <div>
-          <h1 style={{fontSize:20,fontWeight:600,color:C.t1,marginBottom:4,letterSpacing:"-0.3px"}}>Logs</h1>
-          <span style={{fontSize:12,color:C.t3}}>Activity stream and system events</span>
+          {/* FIX: H1 font-size consistent with other pages (20px → 22px) */}
+          <h1 style={{fontSize:22,fontWeight:700,color:C.t1,marginBottom:6,letterSpacing:"-0.3px"}}>Logs</h1>
+          <span style={{fontSize:12,color:C.t2}}>Activity stream and system events</span>
         </div>
         <button onClick={() => setAutoS(!autoS)} style={{display:"flex",alignItems:"center",gap:6,padding:"6px 12px",borderRadius:6,fontSize:10,fontFamily:FN,background:autoS?C.accD:"rgba(255,255,255,.04)",color:autoS?C.accB:C.t3,border:"1px solid "+(autoS?"rgba(59,130,246,.4)":C.bdr),cursor:"pointer",fontWeight:500}}>
           <span style={{width:6,height:6,borderRadius:"50%",background:autoS?C.acc:C.t4}} /> Auto-scroll {autoS?"ON":"OFF"}
