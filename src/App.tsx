@@ -459,12 +459,12 @@ function OverviewTab() {
       <h1 style={{fontSize:17,fontWeight:600,color:C.t1,marginBottom:4}}>Overview</h1>
       <span style={{fontSize:11,color:C.t3}}>Last updated: {new Date().toLocaleTimeString()} • {activeSessions} active</span>
 
-      <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:12,margin:"20px 0"}}>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(180px,1fr))",gap:12,margin:"20px 0"}}>
         <KPI label="Sessions" value={sessions.length} sub={`${activeSessions} active`} />
         <KPI label="Tokens In" value={fm(totalTokensIn)} sub="24h" />
         <KPI label="Tokens Out" value={fm(totalTokensOut)} sub="24h" />
         <KPI label="Cost" value={"$" + totalCost.toFixed(2)} sub="24h" />
-        <Card hover style={{flex:1,border:"1px solid "+C.bdr}}>
+        <Card hover style={{minWidth:0,border:"1px solid "+C.bdr}}>
           <div style={{fontSize:10,color:C.t3,textTransform:"uppercase",marginBottom:6}}>MAIN MODEL</div>
           <div style={{fontSize:13,fontWeight:600,color:C.cy}}>{agents[0]?.model || 'N/A'}</div>
           <div style={{fontSize:10,color:C.t3,marginTop:4}}>{agents.length} agents</div>
@@ -472,7 +472,7 @@ function OverviewTab() {
       </div>
 
       <SLbl>Agents</SLbl>
-      <div style={{display:"flex",gap:8,overflowX:"auto",paddingBottom:8,marginBottom:20}}>
+      <div style={{display:"flex",gap:12,overflowX:"auto",paddingBottom:12,marginBottom:24}}>
         {agents.map(a => (
           <Card key={a.id} hover p="12px 16px" style={{minWidth:160,flex:"0 0 auto",border:"1px solid "+C.bdr}}>
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
@@ -488,7 +488,7 @@ function OverviewTab() {
         ))}
       </div>
 
-      <div style={{display:"grid",gridTemplateColumns:"300px 1fr",gap:16,alignItems:"stretch"}}>
+      <div style={{display:"grid",gridTemplateColumns:"minmax(280px,300px) 1fr",gap:16,alignItems:"stretch",minWidth:0}}>
         <Card p="0" style={{display:"flex",flexDirection:"column",padding:"16px",border:"1px solid "+C.bdr}}>
           <div style={{padding:"0 0 12px 0",borderBottom:"1px solid "+C.bdr,fontSize:12,fontWeight:600,color:C.t1}}>Sessions</div>
           <div style={{flex:1,overflowY:"auto",maxHeight: Math.min(Math.floor((viewportHeight - 250) / 45), 25) * 45 + 20,padding:"8px 0 0 0"}}>
@@ -507,8 +507,8 @@ function OverviewTab() {
         </Card>
         <Card p="0" style={{display:"flex",flexDirection:"column",overflow:"hidden",padding:"16px",border:"1px solid "+C.bdr}}>
           <div style={{padding:"0 0 12px 0",borderBottom:"1px solid "+C.bdr,fontSize:12,fontWeight:600,color:C.t1}}>Recent Runs</div>
-          <div style={{flex:1,overflow:"auto",maxHeight: Math.min(Math.floor((viewportHeight - 250) / 48), 30) * 48 + 50,padding:"8px 0 0 0"}}>
-            <table style={{width:"100%",borderCollapse:"collapse",fontSize:11}}>
+          <div style={{flex:1,overflow:"auto",overflowX:"auto",maxHeight: Math.min(Math.floor((viewportHeight - 250) / 48), 30) * 48 + 50,padding:"8px 0 0 0"}}>
+            <table style={{width:"100%",minWidth:600,borderCollapse:"collapse",fontSize:11}}>
               <thead><tr style={{borderBottom:"1px solid "+C.bdr}}>
                 {["Src","Label","Status","When","Model","Ctx","Tokens"].map(h => <th key={h} style={{...TH,padding:"8px 12px"}}>{h}</th>)}
               </tr></thead>
@@ -581,7 +581,7 @@ function TokenUsageTab() {
       <h1 style={{fontSize:17,fontWeight:600,color:C.t1,marginBottom:4}}>Token Usage</h1>
       <span style={{fontSize:11,color:C.t3}}>Per-request token tracking</span>
 
-      <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10,margin:"16px 0"}}>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(160px,1fr))",gap:10,margin:"16px 0"}}>
         <Card p="12px 16px"><div style={{fontSize:10,color:C.t3,marginBottom:4}}>TOTAL COST</div><div style={{fontSize:22,fontWeight:700,color:C.t1}}>${tCost.toFixed(4)}</div></Card>
         <Card p="12px 16px"><div style={{fontSize:10,color:C.t3,marginBottom:4}}>TOKENS IN</div><div style={{fontSize:22,fontWeight:700,color:C.t1}}>{fm(tIn)}</div></Card>
         <Card p="12px 16px"><div style={{fontSize:10,color:C.t3,marginBottom:4}}>TOKENS OUT</div><div style={{fontSize:22,fontWeight:700,color:C.t1}}>{fm(tOut)}</div></Card>
@@ -596,7 +596,7 @@ function TokenUsageTab() {
 
       <Card p="0" style={{overflow:"hidden"}}>
         <div style={{overflowX:"auto"}}>
-          <table style={{width:"100%",borderCollapse:"collapse",fontSize:11}}>
+          <table style={{width:"100%",minWidth:700,borderCollapse:"collapse",fontSize:11}}>
             <thead><tr style={{borderBottom:"1px solid "+C.bdr}}>
               {["Timestamp","","Model","Agent","Tokens","Cost","Speed","Finish"].map((h,i) => <th key={i} style={TH}>{h}</th>)}
             </tr></thead>
@@ -674,7 +674,7 @@ function AgentsTab() {
   return (
     <div>
       <h1 style={{fontSize:20,fontWeight:600,color:C.t1,marginBottom:16,letterSpacing:"-0.3px"}}>Agents</h1>
-      <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:12,marginBottom:16}}>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(140px,1fr))",gap:12,marginBottom:16}}>
         <Card p="16px"><div style={{fontSize:10,color:C.t3,marginBottom:6,textTransform:"uppercase",letterSpacing:"0.5px"}}>TOTAL</div><div style={{fontSize:24,fontWeight:700,color:C.t1}}>{agents.length}</div></Card>
         <Card p="16px"><div style={{fontSize:10,color:C.t3,marginBottom:6,textTransform:"uppercase",letterSpacing:"0.5px"}}>RUNS 24H</div><div style={{fontSize:24,fontWeight:700,color:C.t1}}>{tR}</div></Card>
         <Card p="16px"><div style={{fontSize:10,color:C.t3,marginBottom:6,textTransform:"uppercase",letterSpacing:"0.5px"}}>ERRORS</div><div style={{fontSize:24,fontWeight:700,color:C.er}}>{agents.reduce((s,a) => s + (a.err24h || 0), 0)}</div></Card>
@@ -682,7 +682,7 @@ function AgentsTab() {
       </div>
       <div style={{display:"flex",gap:8,marginBottom:12}}>{["ALL","MAIN","SUBAGENT"].map(t => <Chip key={t} label={t} active={tf===t} onClick={() => setTf(t)} />)}</div>
       <Card p="0"><div style={{overflowX:"auto"}}>
-        <table style={{width:"100%",borderCollapse:"collapse",fontSize:11}}>
+        <table style={{width:"100%",minWidth:800,borderCollapse:"collapse",fontSize:11}}>
           <thead><tr style={{borderBottom:"1px solid "+C.bdr}}>{["AGENT","TYPE","STATUS","MODEL","RUNS","ERR","TOKENS","COST","LAT"].map(h => <th key={h} style={TH}>{h}</th>)}</tr></thead>
           <tbody>{ags.map(a => (
             <TRow key={a.id} onClick={() => setSel(a)}>
@@ -739,7 +739,7 @@ function SkillsTab() {
         <Chip label="ALL" active={cf==="ALL"} onClick={() => setCf("ALL")} />
         {cats.map(c => <Chip key={c} label={c} active={cf===c} onClick={() => setCf(c)} />)}
       </div>
-      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(300px,1fr))",gap:12}}>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(280px,1fr))",gap:16}}>
         {sk.map(s => (
           <Card key={s.id} hover onClick={() => setSel(s)} p="16px" style={{opacity:s.enabled?1:0.5}}>
             <div style={{display:"flex",justifyContent:"space-between",marginBottom:10,alignItems:"flex-start"}}>
@@ -817,7 +817,7 @@ function HealthTab() {
         </div>
       </div>
 
-      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:20}}>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(350px,1fr))",gap:24}}>
         <div>
           <SLbl n={services.length}>Services</SLbl>
           {services.map((s,i) => (
@@ -917,11 +917,11 @@ function LogsTab() {
   const lvlC = {DEBUG:C.t3,INFO:C.accB,WARN:C.wn,ERROR:C.er,FATAL:"#fca5a5"};
 
   return (
-    <div style={{display:"flex",flexDirection:"column",height:"calc(100vh - 110px)"}}>
+    <div style={{display:"flex",flexDirection:"column",minHeight:0,flex:1}}>
       <h1 style={{fontSize:17,fontWeight:600,color:C.t1,marginBottom:10}}>Logs</h1>
       <span style={{fontSize:11,color:C.t3}}>Activity stream and system events</span>
 
-      <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:16,marginTop:20}}>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(120px,1fr))",gap:16,marginTop:20}}>
         <Card p="12px 14px"><div style={{fontSize:10,color:C.t3,marginBottom:6}}>TOTAL</div><div style={{fontSize:28,fontWeight:700,color:C.t1}}>{logs.length}</div><div style={{fontSize:10,color:C.t3,marginTop:2}}>{lf==="ALL"?"all":"filtered"}</div></Card>
         <Card p="12px 14px"><div style={{fontSize:10,color:C.t3,marginBottom:6}}>INFO</div><div style={{fontSize:28,fontWeight:700,color:C.accB}}>{lc.INFO}</div></Card>
         <Card p="12px 14px"><div style={{fontSize:10,color:C.t3,marginBottom:6}}>WARN</div><div style={{fontSize:28,fontWeight:700,color:C.wn}}>{lc.WARN}</div></Card>
@@ -983,9 +983,10 @@ export default function MDXDashboard() {
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&display=swap');
         * { box-sizing: border-box; margin: 0; padding: 0; }
-        ::-webkit-scrollbar { width: 5px; height: 5px; }
-        ::-webkit-scrollbar-track { background: transparent; }
-        ::-webkit-scrollbar-thumb { background: rgba(255,255,255,.07); border-radius: 3px; }
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: rgba(255,255,255,0.02); border-radius: 3px; }
+        ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.15); }
         @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: .4; } }
         input::placeholder { color: rgba(148,163,184,.45); }
         select option { background: #0d1326; }
@@ -1007,7 +1008,7 @@ export default function MDXDashboard() {
         </div>
       </header>
       <div style={{display:"flex",flex:1,overflow:"hidden"}}>
-        <nav style={{width:col?50:175,minWidth:col?50:175,borderRight:"1px solid "+C.bdr,background:"rgba(8,12,24,.5)",padding:"10px 0",display:"flex",flexDirection:"column",transition:"width 200ms",overflow:"hidden"}}>
+        <nav style={{width:col?50:175,minWidth:col?50:175,flexShrink:0,borderRight:"1px solid "+C.bdr,background:"rgba(8,12,24,.5)",padding:"10px 0",display:"flex",flexDirection:"column",transition:"width 200ms",overflow:"hidden"}}>
           <button onClick={() => setCol(!col)} style={{background:"none",border:"none",color:C.t3,cursor:"pointer",padding:"4px 14px",fontSize:11,textAlign:"left",marginBottom:6,fontFamily:FN}}>{col?"→":"←"}</button>
           {nav.map(n => (
             <button key={n.k} onClick={() => setTab(n.k)} style={{display:"flex",alignItems:"center",gap:10,padding:"10px 14px",background:tab===n.k?"rgba(59,130,246,.08)":"transparent",border:"none",borderLeft:tab===n.k?"2px solid "+C.acc:"2px solid transparent",color:tab===n.k?C.accB:C.t2,cursor:"pointer",fontSize:12,fontWeight:tab===n.k?600:400,width:"100%",textAlign:"left",fontFamily:FN,transition:"all 150ms"}}>
@@ -1021,7 +1022,7 @@ export default function MDXDashboard() {
             {!col && <span style={{fontSize:9,color:C.t3}}>System Online</span>}
           </div>
         </nav>
-        <main style={{flex:1,overflow:"auto",padding:"18px 22px"}}>
+        <main style={{flex:1,overflow:"auto",overflowX:"hidden",padding:"18px 22px",minWidth:0}}>
           {tab === "overview" && <OverviewTab />}
           {tab === "tokens" && <TokenUsageTab />}
           {tab === "agents" && <AgentsTab />}
