@@ -1036,6 +1036,19 @@ function LogsTab() {
   const [autoS, setAutoS] = useState(true);
   const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [viewportHeight, setViewportHeight] = useState(window.innerHeight);
+
+  // Calculate height based on viewport for responsive scroll
+  useEffect(() => {
+    const handleResize = () => setViewportHeight(window.innerHeight);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  // Calculate available height: viewport - (header 46 + nav 60 + title 60 + KPIs 140 + filters 50) ≈ viewport - 356
+  const HEADER_SPACE = 356;
+  const LOG_ROW_HEIGHT = 40;
+  const maxLogRows = Math.max(Math.floor((viewportHeight - HEADER_SPACE) / LOG_ROW_HEIGHT), 15);
 
   useEffect(() => {
     async function loadData() {
@@ -1058,41 +1071,75 @@ function LogsTab() {
   const filtered = logs.filter(l => lf==="ALL" || l.level===lf);
   const lc = {DEBUG:0,INFO:0,WARN:0,ERROR:0,FATAL:0};
   logs.forEach(l => { if (lc[l.level] !== undefined) lc[l.level]++; });
-  const lvlC = {DEBUG:C.t3,INFO:C.accB,WARN:C.wn,ERROR:C.er,FATAL:"#fca5a5"};
+  const lvlC = {DEBUG:{bg:"rgba(148,163,184,0.12)",c:"#94a3b8"},INFO:{bg:"rgba(59,130,246,0.12)",c:"#60a5fa"},WARN:{bg:"rgba(245,158,11,0.12)",c:"#fbbf24"},ERROR:{bg:"rgba(239,68,68,0.12)",c:"#f87171"},FATAL:{bg:"rgba(239,68,68,0.2)",c:"#fca5a5"}};
 
   return (
     <div style={{display:"flex",flexDirection:"column",minHeight:0,flex:1}}>
-      <h1 style={{fontSize:17,fontWeight:600,color:C.t1,marginBottom:10}}>Logs</h1>
-      <span style={{fontSize:11,color:C.t3}}>Activity stream and system events</span>
-
-      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(120px,1fr))",gap:16,marginTop:20}}>
-        <Card p="12px 14px"><div style={{fontSize:10,color:C.t3,marginBottom:6}}>TOTAL</div><div style={{fontSize:28,fontWeight:700,color:C.t1}}>{logs.length}</div><div style={{fontSize:10,color:C.t3,marginTop:2}}>{lf==="ALL"?"all":"filtered"}</div></Card>
-        <Card p="12px 14px"><div style={{fontSize:10,color:C.t3,marginBottom:6}}>INFO</div><div style={{fontSize:28,fontWeight:700,color:C.accB}}>{lc.INFO}</div></Card>
-        <Card p="12px 14px"><div style={{fontSize:10,color:C.t3,marginBottom:6}}>WARN</div><div style={{fontSize:28,fontWeight:700,color:C.wn}}>{lc.WARN}</div></Card>
-        <Card p="12px 14px"><div style={{fontSize:10,color:C.t3,marginBottom:6}}>ERROR</div><div style={{fontSize:28,fontWeight:700,color:C.er}}>{lc.ERROR}</div></Card>
+      <div style={{display:"flex",alignItems:"baseline",justifyContent:"space-between",flexWrap:"wrap",gap:8}}>
+        <div>
+          <h1 style={{fontSize:20,fontWeight:600,color:C.t1,marginBottom:4,letterSpacing:"-0.3px"}}>Logs</h1>
+          <span style={{fontSize:12,color:C.t3}}>Activity stream and system events</span>
+        </div>
+        <button onClick={() => setAutoS(!autoS)} style={{display:"flex",alignItems:"center",gap:6,padding:"6px 12px",borderRadius:6,fontSize:10,fontFamily:FN,background:autoS?C.accD:"rgba(255,255,255,.04)",color:autoS?C.accB:C.t3,border:"1px solid "+(autoS?"rgba(59,130,246,.4)":C.bdr),cursor:"pointer",fontWeight:500}}>
+          <span style={{width:6,height:6,borderRadius:"50%",background:autoS?C.acc:C.t4}} /> Auto-scroll {autoS?"ON":"OFF"}
+        </button>
       </div>
 
-      <div style={{display:"flex",gap:3,marginBottom:10}}>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(100px,1fr))",gap:12,marginTop:20}}>
+        <Card p="14px 16px"><div style={{fontSize:10,color:C.t3,marginBottom:6,textTransform:"uppercase",letterSpacing:"0.5px"}}>Total</div><div style={{fontSize:26,fontWeight:700,color:C.t1}}>{logs.length}</div><div style={{fontSize:9,color:C.t3,marginTop:4}}>{lf==="ALL"?"All levels":lf}</div></Card>
+        <Card p="14px 16px"><div style={{fontSize:10,color:C.t3,marginBottom:6,textTransform:"uppercase",letterSpacing:"0.5px"}}>Debug</div><div style={{fontSize:26,fontWeight:700,color:C.t3}}>{lc.DEBUG}</div></Card>
+        <Card p="14px 16px"><div style={{fontSize:10,color:C.t3,marginBottom:6,textTransform:"uppercase",letterSpacing:"0.5px"}}>Info</div><div style={{fontSize:26,fontWeight:700,color:C.accB}}>{lc.INFO}</div></Card>
+        <Card p="14px 16px"><div style={{fontSize:10,color:C.t3,marginBottom:6,textTransform:"uppercase",letterSpacing:"0.5px"}}>Warn</div><div style={{fontSize:26,fontWeight:700,color:C.wn}}>{lc.WARN}</div></Card>
+        <Card p="14px 16px"><div style={{fontSize:10,color:C.t3,marginBottom:6,textTransform:"uppercase",letterSpacing:"0.5px"}}>Error</div><div style={{fontSize:26,fontWeight:700,color:C.er}}>{lc.ERROR}</div></Card>
+      </div>
+
+      <div style={{display:"flex",gap:6,marginTop:16,marginBottom:12,flexWrap:"wrap",alignItems:"center"}}>
+        <span style={{fontSize:10,color:C.t3,textTransform:"uppercase",marginRight:4}}>Filter:</span>
         <Chip label="ALL" active={lf==="ALL"} onClick={() => setLf("ALL")} />
         {["DEBUG","INFO","WARN","ERROR"].map(l => <Chip key={l} label={l} active={lf===l} onClick={() => setLf(l)} />)}
-        <button onClick={() => setAutoS(!autoS)} style={{marginLeft:"auto",padding:"4px 10px",borderRadius:6,fontSize:10,fontFamily:FN,background:autoS?C.accD:"rgba(255,255,255,.02)",color:autoS?C.accB:C.t3,border:"1px solid "+(autoS?"rgba(59,130,246,.35)":C.bdr),cursor:"pointer"}}>⤓ Auto</button>
+        <span style={{fontSize:11,color:C.t3,marginLeft:"auto"}}>{filtered.length} entries</span>
       </div>
 
-      <Card p="0" style={{flex:1,overflow:"hidden",display:"flex",flexDirection:"column"}}>
-        <div style={{display:"grid",gridTemplateColumns:"120px 44px 90px 1fr",padding:"7px 14px",borderBottom:"1px solid "+C.bdr,background:C.bgS}}>
-          {["Time","Level","Source","Message"].map(h => <span key={h} style={{fontSize:9,color:C.t3,textTransform:"uppercase"}}>{h}</span>)}
+      <Card p="0" style={{flex:1,overflow:"hidden",display:"flex",flexDirection:"column",minHeight:Math.min(maxLogRows * LOG_ROW_HEIGHT + 50, 500)}}>
+        <div style={{display:"grid",gridTemplateColumns:"minmax(100px,1fr) minmax(50px,0.5fr) minmax(70px,0.8fr) minmax(200px,2fr)",padding:"10px 16px",borderBottom:"1px solid "+C.bdr,background:C.bgS,position:"sticky",top:0,zIndex:1}}>
+          {[{l:"Time",w:"minmax(100px,1fr)"},{l:"Level",w:"minmax(50px,0.5fr)"},{l:"Source",w:"minmax(70px,0.8fr)"},{l:"Message",w:"minmax(200px,2fr)"}].map(h => (
+            <span key={h.l} style={{fontSize:10,color:C.t3,textTransform:"uppercase",fontWeight:600,letterSpacing:"0.5px"}}>{h.l}</span>
+          ))}
         </div>
-        <div style={{flex:1,overflowY:"auto"}}>
-          {filtered.slice(0,100).map(l => (
-            <div key={l.id} style={{display:"grid",gridTemplateColumns:"120px 44px 90px 1fr",padding:"10px 14px",borderBottom:"1px solid rgba(255,255,255,.03)",background:l.level==="ERROR"?"rgba(239,68,68,.05)":l.level==="WARN"?"rgba(245,158,11,.02)":"transparent"}}>
-              <span style={{fontSize:11,color:C.t2,fontVariantNumeric:"tabular-nums"}}>{new Date(l.timestamp).toLocaleString("en-US",{month:"short",day:"numeric",hour:"2-digit",minute:"2-digit",second:"2-digit",hour12:false})}</span>
-              <span style={{padding:"2px 6px",borderRadius:4,fontSize:9,fontWeight:600,background:l.level==="INFO"?"rgba(59,130,246,.12)":l.level==="WARN"?"rgba(245,158,11,.1)":l.level==="ERROR"?"rgba(239,68,68,.1)":"rgba(148,163,184,.08)",color:lvlC[l]||C.t3}}>{l.level}</span>
+        <div style={{flex:1,overflowY:"auto",overflowX:"hidden"}}>
+          {filtered.slice(0, maxLogRows).map(l => (
+            <div key={l.id} style={{
+              display:"grid",
+              gridTemplateColumns:"minmax(100px,1fr) minmax(50px,0.5fr) minmax(70px,0.8fr) minmax(200px,2fr)",
+              padding:"10px 16px",
+              borderBottom:"1px solid rgba(255,255,255,.03)",
+              background:l.level==="ERROR"?"rgba(239,68,68,.05)":l.level==="WARN"?"rgba(245,158,11,.02)":l.level==="FATAL"?"rgba(239,68,68,.08)":"transparent",
+              alignItems:"center"
+            }}>
+              <span style={{fontSize:11,color:C.t2,fontVariantNumeric:"tabular-nums",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
+                {new Date(l.timestamp).toLocaleString("en-US",{month:"short",day:"numeric",hour:"2-digit",minute:"2-digit",second:"2-digit",hour12:false})}
+              </span>
+              <span style={{
+                padding:"3px 8px",
+                borderRadius:4,
+                fontSize:9,
+                fontWeight:600,
+                background:lvlC[l.level]?.bg || "rgba(148,163,184,0.1)",
+                color:lvlC[l.level]?.c || C.t3,
+                textAlign:"center",
+                justifySelf:"start"
+              }}>
+                {l.level}
+              </span>
               <span style={{fontSize:11,color:C.cy,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{l.source}</span>
-              <span style={{fontSize:11,color:l.level==="ERROR"?"#f87171":C.t2,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{l.message}</span>
+              <span style={{fontSize:11,color:l.level==="ERROR"?"#f87171":l.level==="WARN"?C.wn:C.t2,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{l.message}</span>
             </div>
           ))}
           {filtered.length === 0 && (
-            <div style={{padding:40,textAlign:"center",color:C.t3}}>No logs to display</div>
+            <div style={{padding:40,textAlign:"center",color:C.t3,fontSize:13}}>
+              <div style={{fontSize:24,marginBottom:8,opacity:0.5}}>📋</div>
+              No logs to display
+            </div>
           )}
         </div>
       </Card>
