@@ -1,6 +1,7 @@
 [build]
-builder = "NIXPACKS-V2"
+builder = "NIXPACKS_V2"
 buildCommand = "npm run build"
+root = "."
 
 [build.env]
 NODE_ENV = "production"
