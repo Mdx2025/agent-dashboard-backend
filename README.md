@@ -16,6 +16,50 @@ Backend API para el Agent Operations Dashboard.
 - `GET /api/logs` - Logs del sistema
 - `POST /api/sync` - Sincronizar datos
 
+## 🔄 Sincronización Automática
+
+### Cron Job
+El sync corre automáticamente cada 5 minutos via crontab:
+
+```bash
+# Crontab (verificar con: crontab -l)
+*/5 * * * * /usr/bin/node /tmp/agent-dashboard-backend-impl/scripts/sync-real.js >> /tmp/sync-real.log 2>&1
+```
+
+### Script de Sync
+- **Ubicación:** `/tmp/agent-dashboard-backend-impl/scripts/sync-real.js`
+- **Logs:** `/tmp/sync-real.log`
+
+### Agentes Sincronizados (REAL_AGENTS)
+Solo estos agentes se sincronizan:
+- `clawma`, `coder`, `heartbeat`, `main`
+- `reasoning`, `researcher`, `support`, `writer`
+
+### Datos Sincronizados
+- **Runs:** Últimos 200 (7 días de historial)
+- **Sesiones:** Últimas 100
+- **Agents:** Los 8 agentes reales
+
+### Formato de Skills
+```json
+{
+  "id": "brainx-v3",
+  "name": "BrainX V3",
+  "version": "3.0.0",
+  "category": "productivity",
+  "enabled": true,
+  "status": "ok",  // "ok", "warn", o "error"
+  "description": "Vector memory",
+  "usage24h": 45,
+  "latencyAvg": 85,
+  "latencyP95": 150,
+  "errorRate": 0.02,
+  "config": {},
+  "dependencies": [],
+  "changelog": []
+}
+```
+
 ## 🏗️ Arquitectura
 
 ```
@@ -44,7 +88,7 @@ Backend API para el Agent Operations Dashboard.
 - **Fastify** - Web framework
 - **Prisma** - ORM
 - **PostgreSQL** - Database
-- **Redis** - Cache (future)
+- **Redis** - Cache
 - **TypeScript** - Type safety
 
 ## 📊 Modelo de Datos
@@ -110,41 +154,6 @@ Backend API para el Agent Operations Dashboard.
 }
 ```
 
-## 🔄 Sync Endpoint
-
-El endpoint `/api/sync` permite poblar la base de datos:
-
-```bash
-curl -X POST https://agent-dashboard-backend-production.up.railway.app/api/sync \
-  -H "Content-Type: application/json" \
-  -d '{
-    "agents": [...],
-    "sessions": [...],
-    "runs": [...],
-    "skills": [...]
-  }'
-```
-
-**Formato de Skills:**
-```json
-{
-  "id": "brainx-v3",
-  "name": "BrainX V3",
-  "version": "3.0.0",
-  "category": "productivity",
-  "enabled": true,
-  "status": "ok",  // Importante: usar "ok", "warn", o "error"
-  "description": "Vector memory",
-  "usage24h": 45,
-  "latencyAvg": 85,
-  "latencyP95": 150,
-  "errorRate": 0.02,
-  "config": {},      // JSON object, no string
-  "dependencies": [], // Array, no string
-  "changelog": []     // Array, no string
-}
-```
-
 ## 🗄️ Base de Datos
 
 ### Migraciones
@@ -181,13 +190,13 @@ REDIS_URL=redis://...
 
 ## 📝 Scripts
 
-### sync.js
+### sync-real.js
 
-Script para sincronizar datos de OpenClaw:
+Script principal para sincronizar datos de OpenClaw:
 
 ```bash
-cd scripts
-node sync.js
+cd /tmp/agent-dashboard-backend-impl/scripts
+node sync-real.js
 ```
 
 Lee datos de `/home/clawd/.openclaw/agents` y los sincroniza con el backend.
@@ -213,9 +222,9 @@ npm run start:prod
 **✅ Funcional:**
 - 8 agentes configurados
 - 29 skills sincronizadas
-- 5 sessions activas
-- 3 runs históricos
+- Sync automático cada 5 minutos
 - Health check funcionando
+- API endpoints operativos
 
 **⏳ En desarrollo:**
 - Logs endpoint
@@ -229,5 +238,5 @@ npm run start:prod
 
 ---
 
-**Última actualización:** 2026-02-20
+**Última actualización:** 2026-02-25
 **Estado:** ✅ Producción activa
