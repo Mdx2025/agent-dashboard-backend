@@ -747,6 +747,8 @@ function SkillsTab() {
   const [cf, setCf] = useState("ALL");
   const [skills, setSkills] = useState([]);
   const [sel, setSel] = useState(null);
+  const [search, setSearch] = useState("");
+  const [visibleCount, setVisibleCount] = useState(12);
 
   useEffect(() => {
     async function loadData() {
@@ -764,40 +766,136 @@ function SkillsTab() {
     return () => clearInterval(interval);
   }, []);
 
+  // Reset visible count when filter changes
+  useEffect(() => {
+    setVisibleCount(12);
+  }, [cf, search]);
+
   if (loading) return <div style={{color:C.t2,padding:20}}>Loading...</div>;
 
   const cats = [...new Set(skills.map(s => s.category || 'General'))];
-  const sk = skills.filter(s => cf==="ALL" || s.category===cf);
+  
+  // Filter by category AND search
+  let sk = skills.filter(s => {
+    const matchesCategory = cf === "ALL" || s.category === cf;
+    const matchesSearch = search === "" || s.name.toLowerCase().includes(search.toLowerCase()) || s.description?.toLowerCase().includes(search.toLowerCase());
+    return matchesCategory && matchesSearch;
+  });
+  
+  const totalCount = skills.length;
+  const filteredCount = sk.length;
+  const displayedSkills = sk.slice(0, visibleCount);
+  const hasMore = visibleCount < filteredCount;
 
   return (
     <div>
-      <h1 style={{fontSize:20,fontWeight:600,color:C.t1,marginBottom:16,letterSpacing:"-0.3px"}}>Skills</h1>
-      <div style={{display:"flex",gap:8,marginBottom:16,flexWrap:"wrap"}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-end",marginBottom:16}}>
+        <div>
+          <h1 style={{fontSize:22,fontWeight:700,color:C.t1,marginBottom:4,letterSpacing:"-0.3px"}}>Skills</h1>
+          <span style={{fontSize:12,color:C.t2}}>{filteredCount === totalCount ? `${totalCount} skills` : `${filteredCount} of ${totalCount} skills`}</span>
+        </div>
+        <div style={{display:"flex",gap:8,alignItems:"center"}}>
+          <div style={{position:"relative"}}>
+            <input 
+              type="text" 
+              placeholder="Search skills..." 
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              style={{
+                background:"rgba(255,255,255,0.03)",
+                border:"1px solid "+C.bdr,
+                borderRadius:"6px",
+                padding:"8px 12px 8px 32px",
+                color:C.t1,
+                fontSize:12,
+                fontFamily:FN,
+                width:180,
+                outline:"none",
+                transition:"border-color 150ms"
+              }}
+            />
+            <span style={{position:"absolute",left:10,top:"50%",transform:"translateY(-50%)",color:C.t3,fontSize:12}}>⌕</span>
+          </div>
+        </div>
+      </div>
+      
+      <div style={{display:"flex",gap:8,marginBottom:20,flexWrap:"wrap",alignItems:"center"}}>
         <Chip label="ALL" active={cf==="ALL"} onClick={() => setCf("ALL")} />
         {cats.map(c => <Chip key={c} label={c} active={cf===c} onClick={() => setCf(c)} />)}
+        {search && (
+          <span style={{fontSize:11,color:C.t3,marginLeft:"auto"}}>
+            Searching: "<span style={{color:C.accB}}>{search}</span>"
+          </span>
+        )}
       </div>
-      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(280px,1fr))",gap:16}}>
-        {sk.map(s => (
-          <Card key={s.id} hover onClick={() => setSel(s)} p="16px" style={{opacity:s.enabled?1:0.5}}>
-            <div style={{display:"flex",justifyContent:"space-between",marginBottom:10,alignItems:"flex-start"}}>
+      
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(300px,1fr))",gap:18}}>
+        {displayedSkills.map(s => (
+          <Card key={s.id} hover onClick={() => setSel(s)} p="18px" style={{opacity:s.enabled?1:0.5,border:"1px solid "+(s.enabled?C.bdr:"rgba(50,70,120,0.1)")}}>
+            <div style={{display:"flex",justifyContent:"space-between",marginBottom:12,alignItems:"flex-start"}}>
               <div>
-                <div style={{fontSize:14,fontWeight:600,color:C.t1,letterSpacing:"-0.2px"}}>{s.name}</div>
-                <div style={{fontSize:10,color:C.t3,marginTop:2}}>v{s.version || '1.0.0'} · {s.category || 'General'}</div>
+                <div style={{fontSize:15,fontWeight:600,color:C.t1,letterSpacing:"-0.2px",lineHeight:1.3}}>{s.name}</div>
+                <div style={{fontSize:10,color:C.t3,marginTop:4}}>
+                  <span style={{color:C.accB}}>v{s.version || '1.0.0'}</span>
+                  <span style={{margin:"0 6px",color:C.t4}}>·</span>
+                  <span>{s.category || 'General'}</span>
+                </div>
               </div>
               <div style={{display:"flex",gap:6,alignItems:"center",flexShrink:0}}>
                 <Pill s={s.status} />
-                <ToggleBadge enabled={s.enabled} />
               </div>
             </div>
-            <div style={{fontSize:11,color:C.t3,marginBottom:12,lineHeight:1.4}}>{s.description}</div>
-            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8,paddingTop:12,borderTop:"1px solid rgba(255,255,255,0.05)"}}>
-              <div><div style={{fontSize:9,color:C.t4,textTransform:"uppercase",letterSpacing:"0.5px",marginBottom:4}}>USE 24H</div><div style={{fontSize:14,fontWeight:600,color:C.t1}}>{s.usage24h || 0}</div></div>
-              <div><div style={{fontSize:9,color:C.t4,textTransform:"uppercase",letterSpacing:"0.5px",marginBottom:4}}>LATENCY</div><div style={{fontSize:14,fontWeight:600,color:C.t1}}>{df(s.latencyAvg)}</div></div>
-              <div><div style={{fontSize:9,color:C.t4,textTransform:"uppercase",letterSpacing:"0.5px",marginBottom:4}}>ERR%</div><div style={{fontSize:14,fontWeight:600,color:s.errorRate>1?C.wn:C.ok}}>{(s.errorRate || 0).toFixed(1)}%</div></div>
+            <div style={{fontSize:12,color:C.t2,marginBottom:14,lineHeight:1.5,minHeight:36}}>{s.description}</div>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:10,paddingTop:14,borderTop:"1px solid rgba(255,255,255,0.05)"}}>
+              <div>
+                <div style={{fontSize:9,color:C.t4,textTransform:"uppercase",letterSpacing:"0.5px",marginBottom:6}}>Use 24h</div>
+                <div style={{fontSize:16,fontWeight:600,color:C.t1}}>{s.usage24h || 0}</div>
+              </div>
+              <div>
+                <div style={{fontSize:9,color:C.t4,textTransform:"uppercase",letterSpacing:"0.5px",marginBottom:6}}>Latency</div>
+                <div style={{fontSize:16,fontWeight:600,color:C.t1}}>{df(s.latencyAvg)}</div>
+              </div>
+              <div>
+                <div style={{fontSize:9,color:C.t4,textTransform:"uppercase",letterSpacing:"0.5px",marginBottom:6}}>Err%</div>
+                <div style={{fontSize:16,fontWeight:600,color:s.errorRate>1?C.wn:C.ok}}>{(s.errorRate || 0).toFixed(1)}%</div>
+              </div>
+            </div>
+            <div style={{marginTop:14,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+              <ToggleBadge enabled={s.enabled} />
+              <span style={{fontSize:10,color:C.t3}}>Click for details →</span>
             </div>
           </Card>
         ))}
       </div>
+      
+      {hasMore && (
+        <div style={{display:"flex",justifyContent:"center",marginTop:24}}>
+          <button 
+            onClick={() => setVisibleCount(v => v + 12)}
+            style={{
+              background:"rgba(59,130,246,0.1)",
+              border:"1px solid rgba(59,130,246,0.3)",
+              borderRadius:"8px",
+              padding:"12px 32px",
+              color:C.accB,
+              fontSize:12,
+              fontWeight:500,
+              fontFamily:FN,
+              cursor:"pointer",
+              transition:"all 150ms"
+            }}
+          >
+            Show more ({filteredCount - visibleCount} remaining)
+          </button>
+        </div>
+      )}
+      
+      {filteredCount === 0 && (
+        <div style={{textAlign:"center",padding:"60px 20px",color:C.t3}}>
+          <div style={{fontSize:14,marginBottom:8}}>No skills found</div>
+          <div style={{fontSize:12}}>Try adjusting your search or filter</div>
+        </div>
+      )}
     </div>
   );
 }
@@ -835,85 +933,94 @@ function HealthTab() {
   if (loading) return <div style={{color:C.t2,padding:20}}>Loading...</div>;
 
   return (
-    <div style={{padding:20}}>
-      <h1 style={{fontSize:17,fontWeight:600,color:C.t1,marginBottom:4}}>Health</h1>
-      <span style={{fontSize:11,color:C.t3}}>System status and diagnostics</span>
+    <div>
+      <h1 style={{fontSize:20,fontWeight:600,color:C.t1,marginBottom:4,letterSpacing:"-0.3px"}}>Health</h1>
+      <span style={{fontSize:12,color:C.t3}}>System status and diagnostics</span>
 
-      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginTop:16,marginBottom:20,padding:"12px 16px",background:"rgba(15,23,42,0.5)",borderRadius:8,borderLeft:"3px solid "+C.ok}}>
-        <div style={{display:"flex",alignItems:"center",gap:10}}>
-          <div style={{width:10,height:10,borderRadius:"50%",background:C.ok,boxShadow:"0 0 12px "+C.ok,animation:"pulse 2s infinite"}} />
-          <div>
-            <div style={{fontSize:14,fontWeight:600,color:C.t1}}>Gateway Online</div>
-            <div style={{fontSize:10,color:C.t3}}>agent-dashboard-backend-production.up.railway.app</div>
+      {/* Gateway Status Banner */}
+      <div style={{marginTop:16,marginBottom:20}}>
+        <Card p="14px 18px" hover style={{borderLeft:"3px solid "+C.ok}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:12}}>
+            <div style={{display:"flex",alignItems:"center",gap:12}}>
+              <div style={{width:10,height:10,borderRadius:"50%",background:C.ok,boxShadow:"0 0 12px "+C.ok,animation:"pulse 2s infinite",flexShrink:0}} />
+              <div>
+                <div style={{fontSize:14,fontWeight:600,color:C.t1}}>Gateway Online</div>
+                <div style={{fontSize:10,color:C.t3}}>agent-dashboard-backend-production.up.railway.app</div>
+              </div>
+            </div>
+            <div style={{display:"flex",gap:20,flexWrap:"wrap"}}>
+              <div><div style={{fontSize:9,color:C.t3,textTransform:"uppercase",marginBottom:2}}>Uptime</div><div style={{fontSize:13,fontWeight:600,color:C.t1}}>14d 7h</div></div>
+              <div><div style={{fontSize:9,color:C.t3,textTransform:"uppercase",marginBottom:2}}>Agents</div><div style={{fontSize:13,fontWeight:600,color:C.t1}}>{activeAgents}</div></div>
+              <div><div style={{fontSize:9,color:C.t3,textTransform:"uppercase",marginBottom:2}}>Latency</div><div style={{fontSize:13,fontWeight:600,color:C.t1}}>{Math.round(totalLatency)}ms</div></div>
+            </div>
           </div>
-        </div>
-        <div style={{display:"flex",gap:20}}>
-          <div><div style={{fontSize:9,color:C.t3,textTransform:"uppercase"}}>Uptime</div><div style={{fontSize:13,fontWeight:600,color:C.t1}}>14d 7h</div></div>
-          <div><div style={{fontSize:9,color:C.t3,textTransform:"uppercase"}}>Agents</div><div style={{fontSize:13,fontWeight:600,color:C.t1}}>{activeAgents}</div></div>
-          <div><div style={{fontSize:9,color:C.t3,textTransform:"uppercase"}}>Latency</div><div style={{fontSize:13,fontWeight:600,color:C.t1}}>{Math.round(totalLatency)}ms</div></div>
-        </div>
+        </Card>
       </div>
 
-      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(350px,1fr))",gap:24}}>
+      {/* Two Column Layout */}
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(320px,1fr))",gap:20}}>
+        {/* Left Column: Services */}
         <div>
           <SLbl n={services.length}>Services</SLbl>
           {services.map((s,i) => (
-            <Card key={i} p="12px 16px" style={{marginBottom:8,borderLeft:"3px solid "+(s.status==="healthy"?C.ok:C.wn)}}>
-              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-                <div style={{display:"flex",alignItems:"center",gap:10}}>
-                  <div style={{width:8,height:8,borderRadius:"50%",background:s.status==="healthy"?C.ok:C.wn}} />
-                  <div>
-                    <div style={{fontSize:13,fontWeight:600,color:C.t1}}>{s.name}</div>
-                    <div style={{fontSize:9,color:C.t3}}>{s.host}:{s.port}</div>
+            <Card key={i} p="14px 18px" hover style={{marginBottom:10,borderLeft:"3px solid "+(s.status==="healthy"?C.ok:C.wn)}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:12}}>
+                <div style={{display:"flex",alignItems:"center",gap:12,flex:1,minWidth:0}}>
+                  <div style={{width:8,height:8,borderRadius:"50%",background:s.status==="healthy"?C.ok:C.wn,flexShrink:0,marginTop:4}} />
+                  <div style={{minWidth:0}}>
+                    <div style={{fontSize:13,fontWeight:600,color:C.t1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{s.name}</div>
+                    <div style={{fontSize:9,color:C.t3,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{s.host}:{s.port}</div>
                   </div>
                 </div>
-                <div style={{textAlign:"right"}}>
+                <div style={{textAlign:"right",flexShrink:0}}>
                   <div style={{fontSize:12,fontWeight:500,color:s.status==="healthy"?C.ok:C.wn}}>{s.status}</div>
                   <div style={{fontSize:10,color:C.t3}}>{s.latencyMs || 0}ms</div>
                 </div>
               </div>
               {(s.cpuPct > 0 || s.memPct > 0) && (
-                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginTop:10}}>
-                  <div><div style={{fontSize:8,color:C.t3,textTransform:"uppercase"}}>CPU</div><MBar v={s.cpuPct || 0} /></div>
-                  <div><div style={{fontSize:8,color:C.t3,textTransform:"uppercase"}}>MEM</div><MBar v={s.memPct || 0} /></div>
+                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginTop:12}}>
+                  <div><div style={{fontSize:8,color:C.t3,textTransform:"uppercase",marginBottom:4}}>CPU</div><MBar v={s.cpuPct || 0} /></div>
+                  <div><div style={{fontSize:8,color:C.t3,textTransform:"uppercase",marginBottom:4}}>MEM</div><MBar v={s.memPct || 0} /></div>
                 </div>
               )}
             </Card>
           ))}
-          {services.length === 0 && <div style={{color:C.t3,padding:20,textAlign:"center"}}>No services</div>}
+          {services.length === 0 && <Card p="20px" style={{textAlign:"center"}}><div style={{color:C.t3,fontSize:11}}>No services</div></Card>}
         </div>
 
+        {/* Right Column: System Metrics & Diagnostics */}
         <div>
           <SLbl>System Metrics</SLbl>
-          <Card p="16px" style={{marginBottom:14}}>
-            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
-              <div><div style={{fontSize:9,color:C.t3,textTransform:"uppercase",marginBottom:4}}>CPU</div><MBar v={avgCpu} /><div style={{fontSize:11,color:C.t1,marginTop:4}}>{avgCpu.toFixed(1)}%</div></div>
-              <div><div style={{fontSize:9,color:C.t3,textTransform:"uppercase",marginBottom:4}}>Memory</div><MBar v={avgMem} /><div style={{fontSize:11,color:C.t1,marginTop:4}}>{avgMem.toFixed(1)}%</div></div>
+          <Card p="18px" hover style={{marginBottom:16}}>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16}}>
+              <div><div style={{fontSize:9,color:C.t3,textTransform:"uppercase",marginBottom:6}}>CPU</div><MBar v={avgCpu} /><div style={{fontSize:11,color:C.t1,marginTop:6}}>{avgCpu.toFixed(1)}%</div></div>
+              <div><div style={{fontSize:9,color:C.t3,textTransform:"uppercase",marginBottom:6}}>Memory</div><MBar v={avgMem} /><div style={{fontSize:11,color:C.t1,marginTop:6}}>{avgMem.toFixed(1)}%</div></div>
             </div>
           </Card>
 
           <SLbl>OpenClaw Diagnostics</SLbl>
-          <Card p="14px" style={{marginBottom:8}}>
-            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
-              <div style={{display:"flex",alignItems:"center",gap:8}}><div style={{width:8,height:8,borderRadius:"50%",background:C.ok}} /><span style={{fontSize:12,color:C.t1}}>API Connectivity</span></div>
+          <Card p="16px" hover style={{marginBottom:10}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
+              <div style={{display:"flex",alignItems:"center",gap:10}}><div style={{width:8,height:8,borderRadius:"50%",background:C.ok}} /><span style={{fontSize:12,color:C.t1}}>API Connectivity</span></div>
               <span style={{fontSize:10,color:C.t3}}>-50ms / 120ms</span>
             </div>
-            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
-              <div style={{display:"flex",alignItems:"center",gap:8}}><div style={{width:8,height:8,borderRadius:"50%",background:C.ok}} /><span style={{fontSize:12,color:C.t1}}>PostgreSQL</span></div>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
+              <div style={{display:"flex",alignItems:"center",gap:10}}><div style={{width:8,height:8,borderRadius:"50%",background:C.ok}} /><span style={{fontSize:12,color:C.t1}}>PostgreSQL</span></div>
               <span style={{fontSize:10,color:C.t3}}>healthy</span>
             </div>
-            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
-              <div style={{display:"flex",alignItems:"center",gap:8}}><div style={{width:8,height:8,borderRadius:"50%",background:C.ok}} /><span style={{fontSize:12,color:C.t1}}>Gateway</span></div>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
+              <div style={{display:"flex",alignItems:"center",gap:10}}><div style={{width:8,height:8,borderRadius:"50%",background:C.ok}} /><span style={{fontSize:12,color:C.t1}}>Gateway</span></div>
               <span style={{fontSize:10,color:C.t3}}>online</span>
             </div>
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-              <div style={{display:"flex",alignItems:"center",gap:8}}><div style={{width:8,height:8,borderRadius:"50%",background:C.ok}} /><span style={{fontSize:12,color:C.t1}}>Sessions</span></div>
+              <div style={{display:"flex",alignItems:"center",gap:10}}><div style={{width:8,height:8,borderRadius:"50%",background:C.ok}} /><span style={{fontSize:12,color:C.t1}}>Sessions</span></div>
               <span style={{fontSize:10,color:C.t3}}>{agents.length} total</span>
             </div>
           </Card>
 
-          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"8px 12px",background:"rgba(245,158,11,0.1)",borderRadius:6,marginTop:8}}>
-            <div style={{display:"flex",alignItems:"center",gap:8}}><div style={{width:8,height:8,borderRadius:"50%",background:C.wn}} /><span style={{fontSize:11,color:C.wn}}>Disk Space</span></div>
+          {/* Warning Banner */}
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"10px 14px",background:"rgba(245,158,11,0.1)",borderRadius:8,border:"1px solid rgba(245,158,11,0.2)"}}>
+            <div style={{display:"flex",alignItems:"center",gap:10}}><div style={{width:8,height:8,borderRadius:"50%",background:C.wn}} /><span style={{fontSize:11,color:C.wn}}>Disk Space</span></div>
             <span style={{fontSize:10,color:C.t3}}>78% used</span>
           </div>
         </div>
