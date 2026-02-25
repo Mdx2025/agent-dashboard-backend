@@ -1222,7 +1222,7 @@ export default function MDXDashboard() {
             {!col && <span style={{fontSize:9,color:C.t3}}>System Online</span>}
           </div>
         </nav>
-        <main style={{flex:1,overflow:"auto",overflowX:"hidden",padding:"18px 22px",minWidth:0}}>
+        <main style={{overflow:"auto",overflowX:"hidden",padding:"18px 22px",minWidth:0}}>
           {tab === "overview" && <OverviewTab />}
           {tab === "tokens" && <TokenUsageTab />}
           {tab === "agents" && <AgentsTab />}
