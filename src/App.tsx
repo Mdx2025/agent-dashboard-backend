@@ -338,11 +338,11 @@ function Chip({label, active, onClick}) {
 
 function KPI({label, value, sub, trend}) {
   return (
-    <Card hover style={{flex:1,minWidth:0,border:"1px solid rgba(50,70,120,0.22)"}}>
-      <div style={{fontSize:10,color:C.t3,textTransform:"uppercase",letterSpacing:"0.7px",marginBottom:8,fontWeight:500}}>{label}</div>
-      <div style={{fontSize:28,fontWeight:700,color:C.t1,lineHeight:1.2,marginBottom:4,letterSpacing:"-0.5px"}}>{value}</div>
-      {sub && <div style={{fontSize:10,color:C.t3,marginTop:6}}>{sub}</div>}
-      {trend && <div style={{fontSize:10,color:trend.startsWith("+")?C.ok:C.t3,marginTop:6,fontWeight:500}}>{trend}</div>}
+    <Card hover style={{flex:1,minWidth:0,border:"1px solid rgba(50,70,120,0.22)",padding:"16px 18px"}}>
+      <div style={{fontSize:11,color:C.t3,textTransform:"uppercase",letterSpacing:"0.8px",marginBottom:10,fontWeight:500}}>{label}</div>
+      <div style={{fontSize:32,fontWeight:700,color:C.t1,lineHeight:1.1,marginBottom:6,letterSpacing:"-1px"}}>{value}</div>
+      {sub && <div style={{fontSize:11,color:C.t2,marginTop:4}}>{sub}</div>}
+      {trend && <div style={{fontSize:11,color:trend.startsWith("+")?C.ok:C.t3,marginTop:8,fontWeight:500}}>{trend}</div>}
     </Card>
   );
 }
@@ -456,10 +456,10 @@ function OverviewTab() {
 
   return (
     <div>
-      <h1 style={{fontSize:17,fontWeight:600,color:C.t1,marginBottom:4}}>Overview</h1>
-      <span style={{fontSize:11,color:C.t3}}>Last updated: {new Date().toLocaleTimeString()} • {activeSessions} active</span>
+      <h1 style={{fontSize:22,fontWeight:700,color:C.t1,marginBottom:6,letterSpacing:"-0.3px"}}>Overview</h1>
+      <span style={{fontSize:12,color:C.t2}}>Last updated: {new Date().toLocaleTimeString()} • {activeSessions} active session{activeSessions !== 1 ? 's' : ''}</span>
 
-      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(180px,1fr))",gap:12,margin:"20px 0"}}>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(200px,1fr))",gap:16,margin:"24px 0"}}>
         <KPI label="Sessions" value={sessions.length} sub={`${activeSessions} active`} />
         <KPI label="Tokens In" value={fm(totalTokensIn)} sub="24h" />
         <KPI label="Tokens Out" value={fm(totalTokensOut)} sub="24h" />
@@ -472,7 +472,7 @@ function OverviewTab() {
       </div>
 
       <SLbl>Agents</SLbl>
-      <div style={{display:"flex",gap:12,overflowX:"auto",paddingBottom:12,marginBottom:24}}>
+      <div style={{display:"flex",gap:14,overflowX:"auto",paddingBottom:14,marginBottom:28}}>
         {agents.map(a => (
           <Card key={a.id} hover p="12px 16px" style={{minWidth:160,flex:"0 0 auto",border:"1px solid "+C.bdr}}>
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
@@ -488,10 +488,10 @@ function OverviewTab() {
         ))}
       </div>
 
-      <div style={{display:"grid",gridTemplateColumns:"minmax(280px,300px) 1fr",gap:16,alignItems:"stretch",minWidth:0}}>
-        <Card p="0" style={{display:"flex",flexDirection:"column",padding:"16px",border:"1px solid "+C.bdr}}>
-          <div style={{padding:"0 0 12px 0",borderBottom:"1px solid "+C.bdr,fontSize:12,fontWeight:600,color:C.t1}}>Sessions</div>
-          <div style={{flex:1,overflowY:"auto",maxHeight: Math.min(Math.floor((viewportHeight - 250) / 45), 25) * 45 + 20,padding:"8px 0 0 0"}}>
+      <div style={{display:"grid",gridTemplateColumns:"minmax(280px,300px) 1fr",gap:20,alignItems:"stretch",minWidth:0}}>
+        <Card p="0" style={{display:"flex",flexDirection:"column",padding:"18px",border:"1px solid "+C.bdr}}>
+          <div style={{padding:"0 0 14px 0",borderBottom:"1px solid "+C.bdr,fontSize:13,fontWeight:600,color:C.t1}}>Active Sessions</div>
+          <div style={{flex:1,overflowY:"auto",maxHeight: Math.min(Math.floor((viewportHeight - 280) / 45), 25) * 45 + 20,padding:"12px 0 0 0"}}>
             {sessions.slice(0, Math.min(Math.floor((viewportHeight - 250) / 45), 25)).map(s => (
               <div key={s.id} style={{padding:"10px 14px",borderBottom:"1px solid rgba(255,255,255,.02)"}}>
                 <div style={{display:"flex",justifyContent:"space-between",marginBottom:2}}>
@@ -505,9 +505,9 @@ function OverviewTab() {
             ))}
           </div>
         </Card>
-        <Card p="0" style={{display:"flex",flexDirection:"column",overflow:"hidden",padding:"16px",border:"1px solid "+C.bdr}}>
-          <div style={{padding:"0 0 12px 0",borderBottom:"1px solid "+C.bdr,fontSize:12,fontWeight:600,color:C.t1}}>Recent Runs</div>
-          <div style={{flex:1,overflow:"auto",overflowX:"auto",maxHeight: Math.min(Math.floor((viewportHeight - 250) / 48), 30) * 48 + 50,padding:"8px 0 0 0"}}>
+        <Card p="0" style={{display:"flex",flexDirection:"column",overflow:"hidden",padding:"18px",border:"1px solid "+C.bdr}}>
+          <div style={{padding:"0 0 14px 0",borderBottom:"1px solid "+C.bdr,fontSize:13,fontWeight:600,color:C.t1}}>Recent Runs</div>
+          <div style={{flex:1,overflow:"auto",overflowX:"auto",maxHeight: Math.min(Math.floor((viewportHeight - 280) / 48), 30) * 48 + 50,padding:"12px 0 0 0"}}>
             <table style={{width:"100%",minWidth:600,borderCollapse:"collapse",fontSize:11}}>
               <thead><tr style={{borderBottom:"1px solid "+C.bdr}}>
                 {["Src","Label","Status","When","Model","Ctx","Tokens"].map(h => <th key={h} style={{...TH,padding:"8px 12px"}}>{h}</th>)}
@@ -648,12 +648,14 @@ function AgentsTab() {
   const [tf, setTf] = useState("ALL");
   const [agents, setAgents] = useState([]);
   const [sel, setSel] = useState(null);
+  const [lastUpdated, setLastUpdated] = useState(null);
 
   useEffect(() => {
     async function loadData() {
       try {
         const a = await apiCall('/agents');
         setAgents(a || []);
+        setLastUpdated(new Date());
       } catch(e) {
         console.error(e);
       } finally {
@@ -671,34 +673,69 @@ function AgentsTab() {
   const tC = agents.reduce((s,a) => s + (a.costDay || 0), 0);
   const tR = agents.reduce((s,a) => s + (a.runs24h || 0), 0);
 
+  // Custom styles for Agents table
+  const agentTH = {...TH, padding:"10px 14px", fontSize:11, letterSpacing:"0.5px"};
+  const agentTD = {...TD, padding:"10px 14px", fontSize:12};
+
   return (
     <div>
-      <h1 style={{fontSize:20,fontWeight:600,color:C.t1,marginBottom:16,letterSpacing:"-0.3px"}}>Agents</h1>
-      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(140px,1fr))",gap:12,marginBottom:16}}>
+      <h1 style={{fontSize:17,fontWeight:600,color:C.t1,marginBottom:4,letterSpacing:"-0.3px"}}>Agents</h1>
+      {lastUpdated && <span style={{fontSize:11,color:C.t3}}>Last updated: {lastUpdated.toLocaleTimeString()}</span>}
+      
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(140px,1fr))",gap:12,margin:"20px 0"}}>
         <Card p="16px"><div style={{fontSize:10,color:C.t3,marginBottom:6,textTransform:"uppercase",letterSpacing:"0.5px"}}>TOTAL</div><div style={{fontSize:24,fontWeight:700,color:C.t1}}>{agents.length}</div></Card>
         <Card p="16px"><div style={{fontSize:10,color:C.t3,marginBottom:6,textTransform:"uppercase",letterSpacing:"0.5px"}}>RUNS 24H</div><div style={{fontSize:24,fontWeight:700,color:C.t1}}>{tR}</div></Card>
         <Card p="16px"><div style={{fontSize:10,color:C.t3,marginBottom:6,textTransform:"uppercase",letterSpacing:"0.5px"}}>ERRORS</div><div style={{fontSize:24,fontWeight:700,color:C.er}}>{agents.reduce((s,a) => s + (a.err24h || 0), 0)}</div></Card>
         <Card p="16px"><div style={{fontSize:10,color:C.t3,marginBottom:6,textTransform:"uppercase",letterSpacing:"0.5px"}}>COST TODAY</div><div style={{fontSize:24,fontWeight:700,color:C.t1}}>${tC.toFixed(2)}</div></Card>
       </div>
-      <div style={{display:"flex",gap:8,marginBottom:12}}>{["ALL","MAIN","SUBAGENT"].map(t => <Chip key={t} label={t} active={tf===t} onClick={() => setTf(t)} />)}</div>
+      
+      <div style={{display:"flex",gap:8,marginBottom:16}}>{["ALL","MAIN","SUBAGENT"].map(t => <Chip key={t} label={t} active={tf===t} onClick={() => setTf(t)} />)}</div>
+      
       <Card p="0"><div style={{overflowX:"auto"}}>
-        <table style={{width:"100%",minWidth:800,borderCollapse:"collapse",fontSize:11}}>
-          <thead><tr style={{borderBottom:"1px solid "+C.bdr}}>{["AGENT","TYPE","STATUS","MODEL","RUNS","ERR","TOKENS","COST","LAT"].map(h => <th key={h} style={TH}>{h}</th>)}</tr></thead>
-          <tbody>{ags.map(a => (
-            <TRow key={a.id} onClick={() => setSel(a)}>
-              <td style={TD}><div style={{fontWeight:600,color:C.t1}}>{a.name}</div><div style={{fontSize:9,color:C.t3}}>{a.id}</div></td>
-              <td style={TD}><SrcBadge s={a.type || 'MAIN'} /></td>
-              <td style={TD}><Pill s={a.status} glow={a.status==="active"} /></td>
-              <td style={{...TD,color:C.cy,fontSize:10}}>{a.model}</td>
-              <td style={{...TD,color:C.t1}}>{a.runs24h || 0}</td>
-              <td style={{...TD,color:a.err24h>0?C.er:C.t3}}>{a.err24h || 0}</td>
-              <td style={{...TD,color:C.t2}}>{fm(a.tokensIn24h || 0)}-{fm(a.tokensOut24h || 0)}</td>
-              <td style={{...TD,color:C.ok}}>${(a.costDay || 0).toFixed(2)}</td>
-              <td style={{...TD,color:C.t2}}>{(a.latencyAvg || 0).toFixed(2)}s</td>
-            </TRow>
+        <table style={{width:"100%",minWidth:700,borderCollapse:"collapse",fontSize:12}}>
+          <thead><tr style={{borderBottom:"1px solid "+C.bdr}}>{["AGENT","TYPE","STATUS","MODEL","RUNS","ERR","TOKENS","COST","LAT"].map(h => <th key={h} style={agentTH}>{h}</th>)}</tr></thead>
+          <tbody>{ags.map((a, idx) => (
+            <tr 
+              key={a.id} 
+              onClick={() => setSel(a)}
+              style={{
+                borderBottom:"1px solid rgba(255,255,255,.02)",
+                cursor:"pointer",
+                background: idx % 2 === 0 ? "transparent" : "rgba(255,255,255,.015)",
+                transition:"background 150ms ease"
+              }}
+              onMouseEnter={e => {e.currentTarget.style.background = "rgba(59,130,246,.04)";}}
+              onMouseLeave={e => {e.currentTarget.style.background = idx % 2 === 0 ? "transparent" : "rgba(255,255,255,.015)";}}
+            >
+              <td style={{...agentTD, fontWeight:500}}><div style={{fontWeight:600,color:C.t1}}>{a.name}</div><div style={{fontSize:9,color:C.t3,marginTop:2}}>{a.id}</div></td>
+              <td style={agentTD}><SrcBadge s={a.type || 'MAIN'} /></td>
+              <td style={agentTD}><Pill s={a.status} glow={a.status==="active"} /></td>
+              <td style={{...agentTD,color:C.cy,fontSize:11}}>{a.model}</td>
+              <td style={{...agentTD,textAlign:"right",color:C.t1,fontVariantNumeric:"tabular-nums"}}>{a.runs24h || 0}</td>
+              <td style={{...agentTD,textAlign:"right",color:a.err24h>0?C.er:C.t3,fontVariantNumeric:"tabular-nums"}}>{a.err24h || 0}</td>
+              <td style={{...agentTD,color:C.t2,fontSize:11}}>{fm(a.tokensIn24h || 0)}-{fm(a.tokensOut24h || 0)}</td>
+              <td style={{...agentTD,textAlign:"right",color:C.ok,fontVariantNumeric:"tabular-nums"}}>${(a.costDay || 0).toFixed(2)}</td>
+              <td style={{...agentTD,textAlign:"right",color:C.t2,fontVariantNumeric:"tabular-nums"}}>{(a.latencyAvg || 0).toFixed(2)}s</td>
+            </tr>
           ))}</tbody>
         </table>
       </div></Card>
+
+      <Drawer open={!!sel} onClose={() => setSel(null)} title={"Agent " + (sel ? sel.name : "")}>
+        {sel && (
+          <DGrid items={[
+            {l:"Status",v:<Pill s={sel.status} glow={sel.status==="active"}/>},
+            {l:"Type",v:<SrcBadge s={sel.type || 'MAIN'}/>},
+            {l:"Model",v:<span style={{color:C.cy}}>{sel.model}</span>},
+            {l:"Runs 24h",v:sel.runs24h || 0},
+            {l:"Errors 24h",v:<span style={{color:sel.err24h>0?C.er:C.t3}}>{sel.err24h || 0}</span>},
+            {l:"Tokens In",v:fm(sel.tokensIn24h || 0)},
+            {l:"Tokens Out",v:fm(sel.tokensOut24h || 0)},
+            {l:"Cost Day",v:<span style={{color:C.ok}}>${(sel.costDay || 0).toFixed(2)}</span>},
+            {l:"Latency Avg",v:(sel.latencyAvg || 0).toFixed(2)+"s"}
+          ]} />
+        )}
+      </Drawer>
     </div>
   );
 }
