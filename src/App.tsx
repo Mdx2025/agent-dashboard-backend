@@ -600,7 +600,7 @@ function TokenUsageTab() {
         <span style={{fontSize:11,color:C.t3,marginLeft:"auto",alignSelf:"center"}}>{fl.length} requests</span>
       </div>
 
-      <Card p="0" style={{overflow:"hidden"}}>
+      <Card p="0" style={{overflow:"hidden",width:"100%"}}>
         <div style={{overflowX:"auto"}}>
           <table style={{width:"100%",minWidth:800,borderCollapse:"collapse",fontSize:11}}>
             <thead><tr style={{borderBottom:"1px solid "+C.bdr}}>
@@ -1222,7 +1222,7 @@ export default function MDXDashboard() {
             {!col && <span style={{fontSize:9,color:C.t3}}>System Online</span>}
           </div>
         </nav>
-        <main style={{overflow:"auto",overflowX:"hidden",padding:"18px 22px",minWidth:0}}>
+        <main style={{flex:1,overflow:"auto",overflowX:"hidden",padding:"18px 22px",minWidth:0}}>
           {tab === "overview" && <OverviewTab />}
           {tab === "tokens" && <TokenUsageTab />}
           {tab === "agents" && <AgentsTab />}
