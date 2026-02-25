@@ -578,38 +578,38 @@ function TokenUsageTab() {
 
   return (
     <div>
-      <h1 style={{fontSize:17,fontWeight:600,color:C.t1,marginBottom:4}}>Token Usage</h1>
-      <span style={{fontSize:11,color:C.t3}}>Per-request token tracking</span>
+      <h1 style={{fontSize:20,fontWeight:600,color:C.t1,marginBottom:4,letterSpacing:"-0.3px"}}>Token Usage</h1>
+      <span style={{fontSize:12,color:C.t3}}>Per-request token tracking</span>
 
-      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(160px,1fr))",gap:10,margin:"16px 0"}}>
-        <Card p="12px 16px"><div style={{fontSize:10,color:C.t3,marginBottom:4}}>TOTAL COST</div><div style={{fontSize:22,fontWeight:700,color:C.t1}}>${tCost.toFixed(4)}</div></Card>
-        <Card p="12px 16px"><div style={{fontSize:10,color:C.t3,marginBottom:4}}>TOKENS IN</div><div style={{fontSize:22,fontWeight:700,color:C.t1}}>{fm(tIn)}</div></Card>
-        <Card p="12px 16px"><div style={{fontSize:10,color:C.t3,marginBottom:4}}>TOKENS OUT</div><div style={{fontSize:22,fontWeight:700,color:C.t1}}>{fm(tOut)}</div></Card>
-        <Card p="12px 16px"><div style={{fontSize:10,color:C.t3,marginBottom:4}}>AVG SPEED</div><div style={{fontSize:22,fontWeight:700,color:C.t1}}>{fl.length ? (tOut / (tIn + 1)).toFixed(1) : "0"} tps</div></Card>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(180px,1fr))",gap:12,margin:"20px 0"}}>
+        <Card p="16px"><div style={{fontSize:10,color:C.t3,marginBottom:6,textTransform:"uppercase",letterSpacing:"0.5px"}}>TOTAL COST</div><div style={{fontSize:28,fontWeight:700,color:C.t1}}>${tCost.toFixed(4)}</div></Card>
+        <Card p="16px"><div style={{fontSize:10,color:C.t3,marginBottom:6,textTransform:"uppercase",letterSpacing:"0.5px"}}>TOKENS IN</div><div style={{fontSize:28,fontWeight:700,color:C.t1}}>{fm(tIn)}</div></Card>
+        <Card p="16px"><div style={{fontSize:10,color:C.t3,marginBottom:6,textTransform:"uppercase",letterSpacing:"0.5px"}}>TOKENS OUT</div><div style={{fontSize:28,fontWeight:700,color:C.t1}}>{fm(tOut)}</div></Card>
+        <Card p="16px"><div style={{fontSize:10,color:C.t3,marginBottom:6,textTransform:"uppercase",letterSpacing:"0.5px"}}>AVG SPEED</div><div style={{fontSize:28,fontWeight:700,color:C.t1}}>{fl.length ? (tOut / (tIn + 1)).toFixed(1) : "0"} tps</div></Card>
       </div>
 
-      <div style={{display:"flex",gap:3,marginBottom:12}}>
+      <div style={{display:"flex",gap:8,marginBottom:16,flexWrap:"wrap"}}>
         <Chip label="ALL" active={pf==="ALL"} onClick={() => setPf("ALL")} />
         {provs.map(p => <Chip key={p} label={p} active={pf===p} onClick={() => setPf(p)} />)}
-        <span style={{fontSize:10,color:C.t3,marginLeft:"auto",alignSelf:"center"}}>{fl.length} requests</span>
+        <span style={{fontSize:11,color:C.t3,marginLeft:"auto",alignSelf:"center"}}>{fl.length} requests</span>
       </div>
 
       <Card p="0" style={{overflow:"hidden"}}>
         <div style={{overflowX:"auto"}}>
-          <table style={{width:"100%",minWidth:700,borderCollapse:"collapse",fontSize:11}}>
+          <table style={{width:"100%",minWidth:800,borderCollapse:"collapse",fontSize:11}}>
             <thead><tr style={{borderBottom:"1px solid "+C.bdr}}>
-              {["Timestamp","","Model","Agent","Tokens","Cost","Speed","Finish"].map((h,i) => <th key={i} style={TH}>{h}</th>)}
+              {["Timestamp","","Model","Agent","Tokens","Cost","Speed","Finish"].map((h,i) => <th key={i} style={{...TH,padding:"10px 14px",width:i===0?"140px":i===1?"40px":i===2?"140px":i===3?"120px":i===4?"100px":i===5?"80px":i===6?"70px":"auto"}}>{h}</th>)}
             </tr></thead>
             <tbody>{fl.map(r => (
               <TRow key={r.id} onClick={() => setSel(r)}>
-                <td style={{...TD,color:C.t2,fontVariantNumeric:"tabular-nums"}}>{new Date(r.timestamp).toLocaleDateString("en-US",{month:"short",day:"numeric"})+", "+new Date(r.timestamp).toLocaleTimeString("en-US",{hour12:true,hour:"2-digit",minute:"2-digit"})}</td>
-                <td style={{...TD,padding:"8px 4px"}}><PIcon p={r.provider} /></td>
-                <td style={TD}><span style={{color:C.accB,fontWeight:600}}>{r.model}</span></td>
-                <td style={{...TD,color:C.t2}}>{r.agent}</td>
-                <td style={{...TD,fontVariantNumeric:"tabular-nums"}}><span style={{color:C.t1}}>{(r.tokensIn || 0).toLocaleString()}</span><span style={{color:C.t4,margin:"0 4px"}}>-</span><span style={{color:C.t2}}>{(r.tokensOut || 0).toLocaleString()}</span></td>
-                <td style={{...TD,color:C.ok,fontWeight:500}}>$ {(r.cost || 0).toFixed(4)}</td>
-                <td style={{...TD,color:C.t2}}>{r.speed} tps</td>
-                <td style={TD}><span style={{color:C.t3}}>{r.finishReason || "—"}</span></td>
+                <td style={{...TD,padding:"10px 14px",color:C.t2,fontVariantNumeric:"tabular-nums"}}>{new Date(r.timestamp).toLocaleDateString("en-US",{month:"short",day:"numeric"})}, {new Date(r.timestamp).toLocaleTimeString("en-US",{hour12:true,hour:"2-digit",minute:"2-digit"})}</td>
+                <td style={{...TD,padding:"10px 8px"}}><PIcon p={r.provider} /></td>
+                <td style={{...TD,padding:"10px 14px"}}><span style={{color:C.accB,fontWeight:600}}>{r.model}</span></td>
+                <td style={{...TD,padding:"10px 14px",color:C.t2}}>{r.agent}</td>
+                <td style={{...TD,padding:"10px 14px",fontVariantNumeric:"tabular-nums"}}><span style={{color:C.t1}}>{(r.tokensIn || 0).toLocaleString()}</span><span style={{color:C.t4,margin:"0 4px"}}>-</span><span style={{color:C.t2}}>{(r.tokensOut || 0).toLocaleString()}</span></td>
+                <td style={{...TD,padding:"10px 14px",color:C.ok,fontWeight:500}}>$ {(r.cost || 0).toFixed(4)}</td>
+                <td style={{...TD,padding:"10px 14px",color:C.t2}}>{r.speed} tps</td>
+                <td style={{...TD,padding:"10px 14px"}}><span style={{color:C.t3}}>{r.finishReason || "—"}</span></td>
               </TRow>
             ))}</tbody>
           </table>
