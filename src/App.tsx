@@ -556,6 +556,13 @@ function TokenUsageTab() {
   const [pf, setPf] = useState("ALL");
   const [tokens, setTokens] = useState([]);
   const [sel, setSel] = useState(null);
+  const [viewportHeight, setViewportHeight] = useState(window.innerHeight);
+
+  useEffect(() => {
+    const handleResize = () => setViewportHeight(window.innerHeight);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   useEffect(() => {
     async function loadData() {
@@ -600,8 +607,8 @@ function TokenUsageTab() {
         <span style={{fontSize:11,color:C.t3,marginLeft:"auto",alignSelf:"center"}}>{fl.length} requests</span>
       </div>
 
-      <Card p="0" style={{overflow:"hidden"}}>
-        <div style={{overflowX:"auto"}}>
+      <Card p="0" style={{overflow:"hidden",flex:1,display:"flex",flexDirection:"column",maxHeight:Math.min(Math.floor((viewportHeight - 320) / 42), 20) * 42 + 30}}>
+        <div style={{overflowX:"auto",overflowY:"auto",flex:1}}>
           <table style={{width:"100%",minWidth:800,borderCollapse:"collapse",fontSize:11}}>
             <thead><tr style={{borderBottom:"1px solid "+C.bdr}}>
               {["Timestamp","","Model","Agent","Tokens","Cost","Speed","Finish"].map((h,i) => <th key={i} style={{...TH,padding:"10px 14px",width:i===0?"140px":i===1?"40px":i===2?"140px":i===3?"120px":i===4?"100px":i===5?"80px":i===6?"70px":"auto"}}>{h}</th>)}
