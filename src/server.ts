@@ -90,6 +90,43 @@ server.get('/api/health', async () => {
   }
 });
 
+// Admin: Initialize database manually
+server.post('/api/admin/init', async (request, reply) => {
+  try {
+    console.log('Manual database initialization requested');
+    
+    // Initialize database schema
+    const initResult = await initializeDatabase();
+    
+    if (!initResult.success) {
+      reply.code(500);
+      return { 
+        status: 'error', 
+        message: 'Database initialization failed', 
+        error: initResult.error 
+      };
+    }
+    
+    // Seed initial data
+    const seedResult = await seedInitialData();
+    
+    return {
+      status: 'ok',
+      message: 'Database initialized successfully',
+      init: initResult,
+      seed: seedResult
+    };
+  } catch (error: any) {
+    console.error('Error in /api/admin/init:', error.message);
+    reply.code(500);
+    return { 
+      status: 'error', 
+      message: 'Initialization failed', 
+      error: error.message 
+    };
+  }
+});
+
 // Get all agents
 server.get('/api/agents', async () => {
   const agents = await prisma.agent.findMany({
@@ -979,15 +1016,8 @@ server.post('/api/sync', async (request, reply) => {
   }
 });
 
-const PORT = process.env.PORT || 3000;
-server.listen({ port: Number(PORT), host: '0.0.0.0' }, async (err, address) => {
-  if (err) { 
-    server.log.error(err); 
-    process.exit(1); 
-  }
-  console.log('Server on ' + address);
-  
-  // Try to ensure tables exist and have correct columns using raw SQL
+// Database initialization function - can be called manually or on startup
+async function initializeDatabase(): Promise<{ success: boolean; message: string; error?: string }> {
   try {
     // Create enums first (IF NOT EXISTS doesn't work for enums, so use DO block)
     await prisma.$executeRaw`
@@ -1094,12 +1124,15 @@ server.listen({ port: Number(PORT), host: '0.0.0.0' }, async (err, address) => {
       // Columns might already exist, ignore
     }
     
-    console.log('Database tables and columns ensured');
-  } catch (e: any) {
-    console.log('Table creation warning:', e.message);
+    return { success: true, message: 'Database tables and columns ensured' };
+  } catch (error: any) {
+    console.error('Database initialization error:', error.message);
+    return { success: false, message: 'Database initialization failed', error: error.message };
   }
-  
-  // Seed initial data if DB is empty
+}
+
+// Seed initial data function
+async function seedInitialData(): Promise<{ success: boolean; message: string; error?: string }> {
   try {
     const agentCount = await prisma.agent.count();
     if (agentCount === 0) {
@@ -1117,9 +1150,42 @@ server.listen({ port: Number(PORT), host: '0.0.0.0' }, async (err, address) => {
         ]
       });
       console.log('Initial agents seeded');
+      return { success: true, message: 'Initial data seeded successfully' };
     }
-  } catch (e) {
-    console.error('Error seeding data:', e);
+    return { success: true, message: 'Data already exists, no seeding needed' };
+  } catch (error: any) {
+    console.error('Error seeding data:', error.message);
+    return { success: false, message: 'Seeding failed', error: error.message };
+  }
+}
+
+const PORT = process.env.PORT || 3000;
+server.listen({ port: Number(PORT), host: '0.0.0.0' }, async (err, address) => {
+  if (err) { 
+    server.log.error(err); 
+    process.exit(1); 
+  }
+  console.log('Server on ' + address);
+  
+  // Initialize database - non-blocking, server continues even if DB init fails
+  try {
+    const initResult = await initializeDatabase();
+    if (initResult.success) {
+      console.log('✅', initResult.message);
+      // Seed data after successful initialization
+      const seedResult = await seedInitialData();
+      if (seedResult.success) {
+        console.log('✅', seedResult.message);
+      } else {
+        console.log('⚠️ Seeding warning:', seedResult.error);
+      }
+    } else {
+      console.log('⚠️ Database initialization warning:', initResult.error);
+      console.log('⚠️ Server will continue running. Use /api/admin/init to retry initialization.');
+    }
+  } catch (e: any) {
+    console.error('⚠️ Unexpected error during initialization:', e.message);
+    console.log('⚠️ Server will continue running. Use /api/admin/init to retry initialization.');
   }
 });
 
