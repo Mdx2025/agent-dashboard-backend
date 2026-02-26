@@ -582,26 +582,8 @@ server.get('/api/inbox', async () => {
   }
 });
 
-// Get activity (last 20 logs)
-server.get('/api/activity', async () => {
-  try {
-    const logs = await prisma.logEntry.findMany({
-      orderBy: { timestamp: 'desc' },
-      take: 20
-    });
-
-    return logs.map(l => ({
-      id: l.id,
-      timestamp: l.timestamp.getTime(),
-      level: l.level,
-      source: l.source,
-      message: l.message
-    }));
-  } catch (error) {
-    console.error('Error fetching activity:', error);
-    return [];
-  }
-});
+// Get activity - ENHANCED VERSION BELOW
+// See /api/activity endpoint in MDX Control section for real-time activity feed
 
 // Get token usage data for Token Usage tab
 
