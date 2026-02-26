@@ -2094,58 +2094,54 @@ function getPriority(run: any): string {
 
 // Get all missions - creates missions from real runs if table is empty
 server.get('/api/missions', async () => {
-  // First, try to get existing missions from the Mission table
+  // Get existing missions from the Mission table
   const existingMissions = await prisma.mission.findMany({
     orderBy: { createdAt: 'desc' }
   });
   
-  // If we have real missions in the table, return them with calculated progress
-  if (existingMissions.length > 0) {
-    // Get runs to calculate progress for missions linked to runs
-    const runs = await prisma.run.findMany({
-      orderBy: { startedAt: 'desc' },
-      take: 100
-    });
-    
-    const runMap = new Map(runs.map(r => [r.id, r]));
-    
-    return existingMissions.map(m => {
-      const config = m.config as any;
-      const linkedRunId = config?.runId;
-      const linkedRun = linkedRunId ? runMap.get(linkedRunId) : null;
-      
-      // Calculate real progress
-      const progress = linkedRun 
-        ? calculateProgress(linkedRun)
-        : (config?.progress ?? (m.status === 'completed' ? 100 : m.status === 'active' ? 50 : 0));
-      
-      return {
-        id: m.id,
-        name: m.name,
-        description: m.description,
-        status: m.status,
-        priority: m.priority,
-        owner: m.owner,
-        progress,
-        config: {
-          ...config,
-          progress,
-          tokensIn: linkedRun?.tokensIn || config?.tokensIn || 0,
-          tokensOut: linkedRun?.tokensOut || config?.tokensOut || 0,
-          model: linkedRun?.model || config?.model,
-          runStatus: linkedRun?.status || config?.runStatus
-        },
-        createdAt: m.createdAt.getTime(),
-        updatedAt: m.updatedAt.getTime()
-      };
-    });
-  }
-  
-  // If no missions in table, create virtual missions from real runs
+  // Get runs to calculate progress and create virtual missions
   const runs = await prisma.run.findMany({
     orderBy: { startedAt: 'desc' },
-    take: 50
+    take: 100
   });
+  
+  const runMap = new Map(runs.map(r => [r.id, r]));
+  
+  // Map existing missions with calculated progress
+  const tableMissions = existingMissions.map(m => {
+    const config = m.config as any;
+    const linkedRunId = config?.runId;
+    const linkedRun = linkedRunId ? runMap.get(linkedRunId) : null;
+    
+    // Calculate real progress
+    const progress = linkedRun 
+      ? calculateProgress(linkedRun)
+      : (config?.progress ?? (m.status === 'completed' ? 100 : m.status === 'active' ? 50 : 0));
+    
+    return {
+      id: m.id,
+      name: m.name,
+      description: m.description,
+      status: m.status,
+      priority: m.priority,
+      owner: m.owner,
+      progress,
+      config: {
+        ...config,
+        progress,
+        tokensIn: linkedRun?.tokensIn || config?.tokensIn || 0,
+        tokensOut: linkedRun?.tokensOut || config?.tokensOut || 0,
+        model: linkedRun?.model || config?.model,
+        runStatus: linkedRun?.status || config?.runStatus
+      },
+      createdAt: m.createdAt.getTime(),
+      updatedAt: m.updatedAt.getTime()
+    };
+  });
+  
+  // ALWAYS create virtual missions from real runs (combines with table missions)
+  // Use the runs already fetched above (take only first 50 for virtual missions)
+  const runsForMissions = runs.slice(0, 50);
   
   // Also get sessions for additional context
   const sessions = await prisma.session.findMany({
@@ -2154,7 +2150,7 @@ server.get('/api/missions', async () => {
   });
   
   // Create missions from runs
-  const runMissions = runs.map((run, index) => {
+  const runMissions = runsForMissions.map((run, index) => {
     const progress = calculateProgress(run);
     const priority = getPriority(run);
     
@@ -2212,8 +2208,8 @@ server.get('/api/missions', async () => {
       updatedAt: session.lastSeenAt.getTime()
     }));
   
-  // Combine and return
-  return [...runMissions, ...sessionMissions];
+  // Combine and return: table missions + virtual missions from runs/sessions
+  return [...tableMissions, ...runMissions, ...sessionMissions];
 });
 
 // Get mission by ID
