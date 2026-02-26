@@ -1827,7 +1827,7 @@ server.get('/api/brainx/activity', async () => {
 server.get('/api/brainx/insights', async () => {
   try {
     // Most queried topics (from query log)
-    let topQueries = [];
+    let topQueries: { query: string; count: number; avgResults: number }[] = [];
     try {
       const queryResult = await brainxPool.query(`
         SELECT query, COUNT(*) as count, AVG(results_count) as avg_results
