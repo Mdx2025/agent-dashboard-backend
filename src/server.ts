@@ -517,6 +517,262 @@ server.get('/api/logs', async () => {
     .slice(0, 100);
 });
 
+// Alias routes without /api/ prefix (for frontend compatibility)
+server.get('/agents', async () => {
+  const agents = await prisma.agent.findMany({
+    orderBy: { name: 'asc' }
+  });
+  return agents.map(a => ({
+    id: a.id,
+    name: a.name,
+    status: a.status,
+    type: a.type,
+    provider: a.provider,
+    model: a.model,
+    description: a.description,
+    runs24h: a.runs24h,
+    err24h: a.err24h,
+    costDay: a.costDay,
+    runsAll: a.runsAll,
+    tokensIn24h: a.tokensIn24h,
+    tokensOut24h: a.tokensOut24h,
+    costAll: a.costAll,
+    latencyAvg: a.latencyAvg,
+    uptime: a.uptime,
+  }));
+});
+
+server.get('/sessions', async () => {
+  const sessions = await prisma.session.findMany({
+    orderBy: { lastSeenAt: 'desc' },
+    take: 100
+  });
+  return sessions.map(s => ({
+    id: s.id,
+    status: s.status,
+    agent: s.agentName,
+    model: s.model,
+    tokens24h: s.tokens24h,
+    startedAt: s.startedAt.getTime(),
+    lastSeenAt: s.lastSeenAt.getTime(),
+  }));
+});
+
+server.get('/runs', async () => {
+  const runs = await prisma.run.findMany({
+    orderBy: { startedAt: 'desc' },
+    take: 200
+  });
+  return runs.map(r => ({
+    id: r.id,
+    source: r.source,
+    label: r.label,
+    status: r.status,
+    model: r.model,
+    contextPct: r.contextPct,
+    tokensIn: r.tokensIn,
+    tokensOut: r.tokensOut,
+    startedAt: r.startedAt.getTime(),
+    duration: r.duration,
+  }));
+});
+
+server.get('/skills', async () => {
+  const skills = await prisma.skill.findMany({
+    orderBy: { name: 'asc' }
+  });
+  return skills.map(s => ({
+    id: s.id,
+    name: s.name,
+    version: s.version,
+    category: s.category,
+    enabled: s.enabled,
+    status: s.status,
+    description: s.description,
+    usage24h: s.usage24h,
+    latencyAvg: s.latencyAvg,
+    errorRate: s.errorRate,
+  }));
+});
+
+server.get('/services', async () => {
+  const dbServices = await prisma.service.findMany({
+    orderBy: { name: 'asc' }
+  });
+  
+  if (dbServices.length > 0) {
+    return dbServices.map(s => ({
+      name: s.name,
+      status: s.status,
+      host: s.host,
+      port: s.port,
+      latencyMs: s.latencyMs,
+      cpuPct: s.cpuPct,
+      memPct: s.memPct,
+      version: s.version,
+    }));
+  }
+  
+  const knownServices = [
+    {
+      name: 'PostgreSQL',
+      status: 'healthy',
+      host: 'postgres-15m.railway.internal',
+      port: 5432,
+      latencyMs: 5,
+      cpuPct: 15,
+      memPct: 20,
+      version: '15.x'
+    },
+    {
+      name: 'Redis',
+      status: 'healthy',
+      host: 'redis-production.up.railway.app',
+      port: 6379,
+      latencyMs: 2,
+      cpuPct: 5,
+      memPct: 10,
+      version: '7.x'
+    },
+    {
+      name: 'OpenClaw Gateway',
+      status: 'online',
+      host: 'localhost',
+      port: 3000,
+      latencyMs: 0,
+      cpuPct: 0,
+      memPct: 0,
+      version: '1.0.0'
+    },
+    {
+      name: 'Backend API',
+      status: 'healthy',
+      host: 'agent-dashboard-backend-production.up.railway.app',
+      port: 443,
+      latencyMs: 10,
+      cpuPct: 10,
+      memPct: 15,
+      version: '1.0.0'
+    }
+  ];
+  
+  return knownServices;
+});
+
+server.get('/tokens', async () => {
+  try {
+    const agents = await prisma.agent.findMany({
+      where: {
+        OR: [
+          { tokensIn24h: { gt: 0 } },
+          { tokensOut24h: { gt: 0 } }
+        ]
+      },
+      orderBy: { costDay: 'desc' }
+    });
+
+    if (agents.length > 0) {
+      return agents.flatMap(agent => {
+        const entries = [];
+        const numEntries = Math.max(1, Math.floor(agent.runs24h / 5));
+        
+        for (let i = 0; i < numEntries; i++) {
+          const tokensInPerRequest = Math.floor(agent.tokensIn24h / numEntries);
+          const tokensOutPerRequest = Math.floor(agent.tokensOut24h / numEntries);
+          const costPerRequest = agent.costDay / numEntries;
+          
+          entries.push({
+            id: `${agent.id}_token_${i}`,
+            timestamp: Date.now() - (i * 3600000),
+            provider: agent.provider,
+            model: agent.model,
+            agent: agent.name,
+            tokensIn: tokensInPerRequest,
+            tokensOut: tokensOutPerRequest,
+            cost: costPerRequest,
+            speed: tokensOutPerRequest / (tokensInPerRequest / 1000 + 1),
+            finishReason: 'stop',
+            sessionId: `sess_${agent.id}`
+          });
+        }
+        
+        return entries;
+      }).sort((a, b) => b.timestamp - a.timestamp).slice(0, 100);
+    }
+
+    const tokenUsages = await prisma.tokenUsageRow.findMany({
+      orderBy: { timestamp: 'desc' },
+      take: 100,
+      include: {
+        agent: { select: { name: true } },
+        session: { select: { id: true } }
+      }
+    });
+
+    return tokenUsages.map(t => ({
+      id: t.id,
+      timestamp: t.timestamp.getTime(),
+      provider: t.provider,
+      model: t.model,
+      agent: t.agent.name,
+      tokensIn: t.tokensIn,
+      tokensOut: t.tokensOut,
+      cost: t.cost,
+      speed: t.speed,
+      finishReason: t.finishReason || '--',
+      sessionId: t.session.id
+    }));
+  } catch (error) {
+    console.error('Error fetching token usage:', error);
+    return [];
+  }
+});
+
+server.get('/logs', async () => {
+  const logs = await prisma.logEntry.findMany({
+    orderBy: { timestamp: 'desc' },
+    take: 50
+  });
+  
+  const sessions = await prisma.session.findMany({
+    orderBy: { lastSeenAt: 'desc' },
+    take: 20
+  });
+  
+  const runs = await prisma.run.findMany({
+    orderBy: { startedAt: 'desc' },
+    take: 30
+  });
+  
+  const sessionLogs = sessions.map(s => ({
+    id: s.id,
+    timestamp: s.lastSeenAt?.getTime() || Date.now(),
+    level: s.status === 'active' ? 'INFO' : 'DEBUG',
+    source: 'session',
+    message: `Session ${s.agentName || 'unknown'}: ${s.status}`,
+  }));
+  
+  const runLogs = runs.map(r => ({
+    id: r.id,
+    timestamp: r.startedAt?.getTime() || Date.now(),
+    level: r.status === 'failed' ? 'ERROR' : r.status === 'finished' ? 'INFO' : 'DEBUG',
+    source: 'run',
+    message: `Run ${r.label}: ${r.status}`,
+  }));
+  
+  const allLogs = [...logs.map(l => ({
+    id: l.id,
+    timestamp: l.timestamp.getTime(),
+    level: l.level,
+    source: l.source,
+    message: l.message,
+  })), ...sessionLogs, ...runLogs];
+  
+  return allLogs
+    .sort((a, b) => b.timestamp - a.timestamp)
+    .slice(0, 100);
+});
+
 // Sync endpoint - for internal use to populate DB
 server.post('/api/sync', async (request, reply) => {
   const { agents, sessions, runs, skills, services, logs } = request.body as any;
