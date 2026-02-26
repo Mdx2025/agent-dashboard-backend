@@ -93,10 +93,10 @@ server.addHook('onRequest', async (request, reply) => {
 server.get('/api/health', async () => {
     try {
         await prisma.$queryRaw `SELECT 1`;
-        return { status: 'ok_v2', timestamp: Date.now(), db: 'connected' };
+        return { status: 'ok', timestamp: Date.now(), db: 'connected' };
     }
     catch (e) {
-        return { status: 'ok_v2', timestamp: Date.now(), db: 'disconnected' };
+        return { status: 'ok', timestamp: Date.now(), db: 'disconnected' };
     }
 });
 // Admin: Initialize database manually
@@ -132,6 +132,15 @@ server.post('/api/admin/init', async (request, reply) => {
         };
     }
 });
+// AGENTS CONFIGURATION - Threads will be created for these agents
+const AGENT_THREADS = [
+    { id: "agent_coder", name: "🛠️ Coder", emoji: "🛠️", agentId: "coder", status: "online" },
+    { id: "agent_monitor", name: "📊 Monitor", emoji: "📊", agentId: "monitor", status: "online" },
+    { id: "agent_clawma", name: "🤖 Clawma", emoji: "🤖", agentId: "clawma", status: "online" },
+    { id: "agent_main", name: "⭐ Main", emoji: "⭐", agentId: "main", status: "online" },
+    { id: "agent_support", name: "🔧 Support", emoji: "🔧", agentId: "support", status: "online" },
+    { id: "agent_heartbeat", name: "💓 Heartbeat", emoji: "💓", agentId: "heartbeat", status: "online" }
+];
 // Agent emoji mapping based on name
 const AGENT_EMOJIS = {
     'main': '🤖',
@@ -504,61 +513,54 @@ server.get('/api/artifacts', async () => {
         return [];
     }
 });
-// GET /api/inbox - Messages in inbox (threads with messages)
+// GET /api/inbox - Messages in inbox (threads by AGENT, not sessions)
+// COMBINED: Agent threads from DB
 server.get('/api/inbox', async () => {
     try {
-        console.log('[INBOX_DEBUG] Starting /api/inbox request');
-        // Get existing threads from InboxThread table
-        let threads = await prisma.$queryRaw `SELECT * FROM "InboxThread" ORDER BY "updatedAt" DESC LIMIT 50`;
-        console.log('[INBOX_DEBUG] Found threads:', threads.length);
-        // If no threads exist, create from sessions (for demo)
-        if (threads.length === 0) {
-            const sessions = await prisma.session.findMany({
-                orderBy: { lastSeenAt: 'desc' },
-                take: 10
-            });
-            console.log('[INBOX] No threads found, creating from sessions. Session count:', sessions.length);
-            // Create threads from active sessions
-            for (const session of sessions) {
-                const agentName = session.agentName || 'unknown';
-                const threadId = `session_${agentName.toLowerCase()}_${session.id.slice(-6)}`;
-                console.log('[INBOX] Creating thread:', threadId, 'for agent:', agentName);
+        // Get or create agent threads
+        const threadList = await Promise.all(AGENT_THREADS.map(async (agent) => {
+            // Try to get thread from DB
+            let threads = await prisma.$queryRaw `SELECT * FROM "InboxThread" WHERE id = ${agent.id}`;
+            let thread = threads.length > 0 ? threads[0] : null;
+            // If thread doesn't exist, create it
+            if (!thread) {
+                console.log('[INBOX] Creating thread for agent:', agent.name);
                 await prisma.$executeRaw `
           INSERT INTO "InboxThread" (id, name, agent, status, "createdAt", "updatedAt")
           VALUES ($1, $2, $3, $4, NOW(), NOW())
-          ON CONFLICT (id) DO NOTHING
-        `, [threadId, `Session: ${agentName}`, agentName.toLowerCase(), session.status];
+        `, [agent.id, agent.name, agent.agentId, agent.status];
+                // Re-fetch
+                threads = await prisma.$queryRaw `SELECT * FROM "InboxThread" WHERE id = ${agent.id}`;
+                thread = threads.length > 0 ? threads[0] : null;
             }
-            // Re-fetch threads
-            threads = await prisma.$queryRaw `SELECT * FROM "InboxThread" ORDER BY "updatedAt" DESC LIMIT 50`;
-        }
-        // Get messages for each thread
-        const threadList = await Promise.all(threads.map(async (thread) => {
-            const messages = await prisma.$queryRaw `SELECT id, "from", text, type, "createdAt" FROM "InboxMessage" WHERE "threadId" = ${thread.id} ORDER BY "createdAt" ASC LIMIT 50`;
-            // If no messages, add default welcome messages for demo
-            if (messages.length === 0 && thread.status === 'active') {
+            // Get messages for this thread
+            const messages = await prisma.$queryRaw `SELECT id, "from", text, type, "createdAt" FROM "InboxMessage" WHERE "threadId" = ${agent.id} ORDER BY "createdAt" ASC LIMIT 50`;
+            // If no messages, add default welcome message
+            if (messages.length === 0) {
                 const now = new Date();
                 await prisma.$executeRaw `
           INSERT INTO "InboxMessage" (id, "threadId", "from", text, type, "createdAt")
           VALUES ($1, $2, $3, $4, $5, $6)
-        `, [`msg_${Date.now()}_init`, thread.id, 'agent', `Session status: ${thread.status}`, 'message', now];
+        `, [`msg_${Date.now()}_init`, agent.id, 'agent', `Hola, soy ${agent.name}. ¿En qué puedo ayudarte?`, 'message', now];
                 return {
-                    id: thread.id,
-                    name: thread.name,
-                    agent: thread.agent,
-                    status: thread.status,
+                    id: agent.id,
+                    name: agent.name,
+                    agent: agent.agentId,
+                    status: agent.status,
+                    emoji: agent.emoji,
                     messages: [{
                             from: 'agent',
-                            text: `Session status: ${thread.status}`,
+                            text: `Hola, soy ${agent.name}. ¿En qué puedo ayudarte?`,
                             time: now.toISOString()
                         }]
                 };
             }
             return {
-                id: thread.id,
-                name: thread.name,
-                agent: thread.agent,
-                status: thread.status,
+                id: thread?.id || agent.id,
+                name: thread?.name || agent.name,
+                agent: thread?.agent || agent.agentId,
+                status: thread?.status || agent.status,
+                emoji: agent.emoji,
                 messages: messages.map(m => ({
                     from: m.from,
                     text: m.text,
@@ -566,6 +568,7 @@ server.get('/api/inbox', async () => {
                 }))
             };
         }));
+        console.log('[INBOX] Agent threads:', threadList.length);
         // Also get recent logs as fallback (for backward compatibility)
         const logs = await prisma.logEntry.findMany({
             orderBy: { timestamp: 'desc' },
@@ -607,17 +610,41 @@ server.get('/api/inbox', async () => {
     }
 });
 // GET /api/inbox/:threadId - Get specific thread with all messages
+// HANDLES: Both DB threads and dynamic session threads
 server.get('/api/inbox/:threadId', async (request, reply) => {
     const { threadId } = request.params;
     try {
-        // Get the thread
-        const threads = await prisma.$queryRaw `SELECT * FROM "InboxThread" WHERE id = ${threadId}`;
-        if (threads.length === 0) {
+        // 1. Try to get thread from DB
+        let threads = await prisma.$queryRaw `SELECT * FROM "InboxThread" WHERE id = ${threadId}`;
+        let thread = threads.length > 0 ? threads[0] : null;
+        // 2. If not in DB and it's a session thread, create it dynamically
+        if (!thread && threadId.startsWith('session_')) {
+            const parts = threadId.split('_');
+            if (parts.length >= 2) {
+                const agentName = parts[1];
+                console.log('[INBOX] Creating dynamic thread for:', agentName);
+                // Check if session exists to get status
+                const sessions = await prisma.session.findMany({
+                    where: { agentName: { equals: agentName, mode: 'insensitive' } },
+                    take: 1
+                });
+                const session = sessions[0];
+                // Create thread in DB
+                await prisma.$executeRaw `
+          INSERT INTO "InboxThread" (id, name, agent, status, "createdAt", "updatedAt")
+          VALUES ($1, $2, $3, $4, NOW(), NOW())
+          ON CONFLICT (id) DO NOTHING
+        `, [threadId, `Session: ${agentName}`, agentName, session?.status || 'idle'];
+                // Re-fetch
+                threads = await prisma.$queryRaw `SELECT * FROM "InboxThread" WHERE id = ${threadId}`;
+                thread = threads.length > 0 ? threads[0] : null;
+            }
+        }
+        if (!thread) {
             reply.code(404);
             return { error: 'Thread not found' };
         }
-        const thread = threads[0];
-        // Get messages for this thread
+        // 3. Get messages for this thread
         const messages = await prisma.$queryRaw `SELECT id, "from", text, type, "createdAt" FROM "InboxMessage" WHERE "threadId" = ${threadId} ORDER BY "createdAt" ASC`;
         return {
             id: thread.id,
@@ -637,45 +664,100 @@ server.get('/api/inbox/:threadId', async (request, reply) => {
         return { error: 'Failed to fetch thread' };
     }
 });
+// Agent responses for ping - personalized by agent
+const AGENT_RESPONSES = {
+    coder: "🛠️ Recibido. Procesando tu solicitud de código...",
+    monitor: "📊 Monitoreando estado del sistema...",
+    clawma: "🤖 Entendido. Trabajando en ello.",
+    main: "⭐ A la orden. ¿Qué necesitas?",
+    support: "🔧 Soporte técnico listo. ¿En qué puedo ayudarte?",
+    heartbeat: "💓 Sistema funcionando correctamente. Pulso activo."
+};
 // POST /api/inbox/:threadId/ping - Send ping/message from operator to agent
+// HANDLES: Agent threads (agent_coder, agent_clawma, etc.)
 server.post('/api/inbox/:threadId/ping', async (request, reply) => {
     const { threadId } = request.params;
     const { type = 'message', message } = request.body;
     try {
-        // 1. Verify thread exists
-        const threads = await prisma.$queryRaw `SELECT * FROM "InboxThread" WHERE id = ${threadId}`;
-        if (threads.length === 0) {
+        // 1. Check if thread is an agent thread
+        const isAgentThread = threadId.startsWith('agent_');
+        let thread = null;
+        let agentName = '';
+        if (isAgentThread) {
+            // Extract agent ID from threadId: agent_coder -> coder
+            agentName = threadId.replace('agent_', '');
+            // Find agent config
+            const agentConfig = AGENT_THREADS.find(a => a.agentId === agentName);
+            console.log('[INBOX] Agent ping:', agentName, 'config:', agentConfig);
+            // Get or create thread
+            let threads = await prisma.$queryRaw `SELECT * FROM "InboxThread" WHERE id = ${threadId}`;
+            thread = threads.length > 0 ? threads[0] : null;
+            if (!thread && agentConfig) {
+                await prisma.$executeRaw `
+          INSERT INTO "InboxThread" (id, name, agent, status, "createdAt", "updatedAt")
+          VALUES ($1, $2, $3, $4, NOW(), NOW())
+        `, [threadId, agentConfig.name, agentConfig.agentId, 'online'];
+                threads = await prisma.$queryRaw `SELECT * FROM "InboxThread" WHERE id = ${threadId}`;
+                thread = threads.length > 0 ? threads[0] : null;
+            }
+        }
+        else {
+            // Legacy: check for session thread
+            let threads = await prisma.$queryRaw `SELECT * FROM "InboxThread" WHERE id = ${threadId}`;
+            thread = threads.length > 0 ? threads[0] : null;
+            if (!thread && threadId.startsWith('session_')) {
+                const parts = threadId.split('_');
+                if (parts.length >= 2) {
+                    agentName = parts[1];
+                    await prisma.$executeRaw `
+            INSERT INTO "InboxThread" (id, name, agent, status, "createdAt", "updatedAt")
+            VALUES ($1, $2, $3, $4, NOW(), NOW())
+            ON CONFLICT (id) DO NOTHING
+          `, [threadId, `Session: ${agentName}`, agentName, 'active'];
+                    threads = await prisma.$queryRaw `SELECT * FROM "InboxThread" WHERE id = ${threadId}`;
+                    thread = threads.length > 0 ? threads[0] : null;
+                }
+            }
+            if (thread) {
+                agentName = thread.agent;
+            }
+        }
+        // 3. If still no thread, return 404
+        if (!thread) {
             reply.code(404);
             return { error: 'Thread not found' };
         }
-        const thread = threads[0];
-        const agentName = thread.agent;
-        // 2. Save operator message to DB
+        // 4. Save operator message to DB
         const messageId = `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
         const now = new Date();
         await prisma.$executeRaw `
       INSERT INTO "InboxMessage" (id, "threadId", "from", text, type, "createdAt")
       VALUES ($1, $2, $3, $4, $5, $6)
     `, [messageId, threadId, 'operator', message || `Ping type: ${type}`, 'message', now];
-        // 3. Log that we received a message from operator
+        // Update thread timestamp
+        await prisma.$executeRaw `UPDATE "InboxThread" SET "updatedAt" = NOW() WHERE id = ${threadId}`;
+        // 5. Log that we received a message from operator
         console.log(`[INBOX] Operator ping to thread ${threadId} (agent: ${agentName}): type=${type}, message=${message}`);
-        // 4. Simulate agent response after 1-2 seconds (for demo)
-        // In production, this would actually send to the agent
+        // 6. Generate personalized agent response
         const agentResponseDelay = 1000 + Math.random() * 1000;
         setTimeout(async () => {
             let responseText = '';
+            // Use personalized response if available, otherwise fallback to generic
+            const personalizedResponse = AGENT_RESPONSES[agentName];
             switch (type) {
                 case 'help':
-                    responseText = `¡Entendido! El agente ${agentName} está listo para ayudarte. ¿En qué puedo asistirte?`;
+                    responseText = personalizedResponse
+                        ? personalizedResponse + "\n\n¿Necesitas ayuda específica?"
+                        : `¡Entendido! El agente ${agentName} está listo para ayudarte. ¿En qué puedo asistirte?`;
                     break;
                 case 'status':
-                    responseText = `📊 Estado del agente ${agentName}: ${thread.status === 'active' ? '🟢 Activo' : '⚪ Inactivo'}`;
+                    responseText = `📊 Estado del agente ${agentName}: 🟢 Online y funcionando`;
                     break;
                 case 'stop':
                     responseText = `🛑 Solicitud de parada recibida. El agente ${agentName} está deteniendo sus tareas actuales.`;
                     break;
                 default:
-                    responseText = `📬 Mensaje recibido por ${agentName}. ¿Cómo puedo ayudarte?`;
+                    responseText = personalizedResponse || `📬 Mensaje recibido por ${agentName}. ¿Cómo puedo ayudarte?`;
             }
             const responseId = `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
             const responseTime = new Date();
@@ -686,7 +768,7 @@ server.post('/api/inbox/:threadId/ping', async (request, reply) => {
       `, [responseId, threadId, 'agent', responseText, 'message', responseTime];
             console.log(`[INBOX] Agent ${agentName} responded to thread ${threadId}`);
         }, agentResponseDelay);
-        // 5. Return immediately with success
+        // 7. Return immediately with success
         return {
             success: true,
             messageId,

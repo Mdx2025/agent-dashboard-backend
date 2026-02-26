@@ -599,8 +599,8 @@ server.get('/api/inbox', async () => {
         console.log('[INBOX] Creating thread for agent:', agent.name);
         await prisma.$executeRaw`
           INSERT INTO "InboxThread" (id, name, agent, status, "createdAt", "updatedAt")
-          VALUES ($1, $2, $3, $4, NOW(), NOW())
-        `, [agent.id, agent.name, agent.agentId, agent.status];
+          VALUES (${agent.id}, ${agent.name}, ${agent.agentId}, ${agent.status}, NOW(), NOW())
+        `;
         
         // Re-fetch
         threads = await prisma.$queryRaw<InboxThreadRow[]>`SELECT * FROM "InboxThread" WHERE id = ${agent.id}`;
@@ -615,8 +615,8 @@ server.get('/api/inbox', async () => {
         const now = new Date();
         await prisma.$executeRaw`
           INSERT INTO "InboxMessage" (id, "threadId", "from", text, type, "createdAt")
-          VALUES ($1, $2, $3, $4, $5, $6)
-        `, [`msg_${Date.now()}_init`, agent.id, 'agent', `Hola, soy ${agent.name}. ¿En qué puedo ayudarte?`, 'message', now];
+          VALUES (${`msg_${Date.now()}_init`}, ${agent.id}, ${'agent'}, ${`Hola, soy ${agent.name}. ¿En qué puedo ayudarte?`}, ${'message'}, ${now})
+        `;
         
         return {
           id: agent.id,
@@ -714,9 +714,9 @@ server.get('/api/inbox/:threadId', async (request: FastifyRequest<{ Params: { th
         // Create thread in DB
         await prisma.$executeRaw`
           INSERT INTO "InboxThread" (id, name, agent, status, "createdAt", "updatedAt")
-          VALUES ($1, $2, $3, $4, NOW(), NOW())
+          VALUES (${threadId}, ${`Session: ${agentName}`}, ${agentName}, ${session?.status || 'idle'}, NOW(), NOW())
           ON CONFLICT (id) DO NOTHING
-        `, [threadId, `Session: ${agentName}`, agentName, session?.status || 'idle'];
+        `;
         
         // Re-fetch
         threads = await prisma.$queryRaw<InboxThreadRow[]>`SELECT * FROM "InboxThread" WHERE id = ${threadId}`;
@@ -789,8 +789,8 @@ server.post('/api/inbox/:threadId/ping', async (request: FastifyRequest<{ Params
       if (!thread && agentConfig) {
         await prisma.$executeRaw`
           INSERT INTO "InboxThread" (id, name, agent, status, "createdAt", "updatedAt")
-          VALUES ($1, $2, $3, $4, NOW(), NOW())
-        `, [threadId, agentConfig.name, agentConfig.agentId, 'online'];
+          VALUES (${threadId}, ${agentConfig.name}, ${agentConfig.agentId}, ${'online'}, NOW(), NOW())
+        `;
         
         threads = await prisma.$queryRaw<InboxThreadRow[]>`SELECT * FROM "InboxThread" WHERE id = ${threadId}`;
         thread = threads.length > 0 ? threads[0] : null;
@@ -806,9 +806,9 @@ server.post('/api/inbox/:threadId/ping', async (request: FastifyRequest<{ Params
           agentName = parts[1];
           await prisma.$executeRaw`
             INSERT INTO "InboxThread" (id, name, agent, status, "createdAt", "updatedAt")
-            VALUES ($1, $2, $3, $4, NOW(), NOW())
+            VALUES (${threadId}, ${`Session: ${agentName}`}, ${agentName}, ${'active'}, NOW(), NOW())
             ON CONFLICT (id) DO NOTHING
-          `, [threadId, `Session: ${agentName}`, agentName, 'active'];
+          `;
           
           threads = await prisma.$queryRaw<InboxThreadRow[]>`SELECT * FROM "InboxThread" WHERE id = ${threadId}`;
           thread = threads.length > 0 ? threads[0] : null;
@@ -832,8 +832,8 @@ server.post('/api/inbox/:threadId/ping', async (request: FastifyRequest<{ Params
     
     await prisma.$executeRaw`
       INSERT INTO "InboxMessage" (id, "threadId", "from", text, type, "createdAt")
-      VALUES ($1, $2, $3, $4, $5, $6)
-    `, [messageId, threadId, 'operator', message || `Ping type: ${type}`, 'message', now];
+      VALUES (${messageId}, ${threadId}, ${'operator'}, ${message || `Ping type: ${type}`}, ${'message'}, ${now})
+    `;
     
     // Update thread timestamp
     await prisma.$executeRaw`UPDATE "InboxThread" SET "updatedAt" = NOW() WHERE id = ${threadId}`;
@@ -872,8 +872,8 @@ server.post('/api/inbox/:threadId/ping', async (request: FastifyRequest<{ Params
       // Save agent response
       await prisma.$executeRaw`
         INSERT INTO "InboxMessage" (id, "threadId", "from", text, type, "createdAt")
-        VALUES ($1, $2, $3, $4, $5, $6)
-      `, [responseId, threadId, 'agent', responseText, 'message', responseTime];
+        VALUES (${responseId}, ${threadId}, ${'agent'}, ${responseText}, ${'message'}, ${responseTime})
+      `;
       
       console.log(`[INBOX] Agent ${agentName} responded to thread ${threadId}`);
     }, agentResponseDelay);
