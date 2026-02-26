@@ -11,6 +11,19 @@ const fs_1 = __importDefault(require("fs"));
 const path_1 = __importDefault(require("path"));
 const server = (0, fastify_1.default)({ logger: true });
 const prisma = new client_1.PrismaClient();
+// BrainX PostgreSQL connection - Lazy initialization
+const pg_1 = __importDefault(require("pg"));
+const { Pool } = pg_1.default;
+let brainxPool = null;
+function getBrainXPool() {
+    if (!brainxPool) {
+        brainxPool = new Pool({
+            connectionString: process.env.BRAINX_DATABASE_URL || 'postgresql://brainx:qlXjMcmpvjd4iS+eaf8TUDPBSTGfkEKoetlQTQW3eq0=@127.0.0.1:5432/brainx_v3',
+            ssl: false,
+        });
+    }
+    return brainxPool;
+}
 server.register(cors_1.default, { origin: true });
 // Auto-logging middleware
 server.addHook('onRequest', async (request, reply) => {
@@ -119,29 +132,87 @@ server.post('/api/admin/init', async (request, reply) => {
         };
     }
 });
+// Agent emoji mapping based on name
+const AGENT_EMOJIS = {
+    'main': '🤖',
+    'coder': '💻',
+    'researcher': '🔍',
+    'writer': '✍️',
+    'support': '🎧',
+    'heartbeat': '💓',
+    'reasoning': '🧠',
+    'clawma': '🐾',
+    'jarvis': '🦾',
+    'default': '🤖'
+};
+// Agent color mapping
+const AGENT_COLORS = {
+    'main': '#3B82F6',
+    'coder': '#10B981',
+    'researcher': '#8B5CF6',
+    'writer': '#F59E0B',
+    'support': '#EC4899',
+    'heartbeat': '#EF4444',
+    'reasoning': '#6366F1',
+    'clawma': '#14B8A6',
+    'jarvis': '#F97316',
+    'default': '#6B7280'
+};
+// Agent positions for 3D visualization
+const AGENT_POSITIONS = {
+    'main': { px: 0, pz: 0 },
+    'coder': { px: 2, pz: 1 },
+    'researcher': { px: -2, pz: 1 },
+    'writer': { px: 1, pz: -2 },
+    'support': { px: -1, pz: -2 },
+    'heartbeat': { px: 0, pz: 3 },
+    'reasoning': { px: 3, pz: 0 },
+    'clawma': { px: -3, pz: 0 },
+    'jarvis': { px: 2, pz: -2 }
+};
+// Generate steps for missions based on status
+function generateSteps(status) {
+    const steps = [
+        { id: 'step_1', title: 'Initialize', status: 'completed', timestamp: Date.now() - 3600000 },
+        { id: 'step_2', title: 'Process Input', status: status === 'queued' ? 'pending' : 'completed', timestamp: Date.now() - 1800000 },
+        { id: 'step_3', title: 'Execute Task', status: status === 'running' ? 'in_progress' : status === 'queued' ? 'pending' : 'completed', timestamp: Date.now() - 900000 },
+        { id: 'step_4', title: 'Finalize', status: status === 'finished' ? 'completed' : status === 'failed' ? 'failed' : 'pending', timestamp: Date.now() }
+    ];
+    return steps;
+}
 // Get all agents
 server.get('/api/agents', async () => {
     const agents = await prisma.agent.findMany({
         orderBy: { name: 'asc' }
     });
-    return agents.map(a => ({
-        id: a.id,
-        name: a.name,
-        status: a.status,
-        type: a.type,
-        provider: a.provider,
-        model: a.model,
-        description: a.description,
-        runs24h: a.runs24h,
-        err24h: a.err24h,
-        costDay: a.costDay,
-        runsAll: a.runsAll,
-        tokensIn24h: a.tokensIn24h,
-        tokensOut24h: a.tokensOut24h,
-        costAll: a.costAll,
-        latencyAvg: a.latencyAvg,
-        uptime: a.uptime,
-    }));
+    return agents.map(a => {
+        const agentId = a.id.toLowerCase();
+        const pos = AGENT_POSITIONS[agentId] || { px: Math.random() * 4 - 2, pz: Math.random() * 4 - 2 };
+        return {
+            id: a.id,
+            name: a.name,
+            status: a.status,
+            type: a.type,
+            provider: a.provider,
+            model: a.model,
+            description: a.description,
+            runs24h: a.runs24h,
+            err24h: a.err24h,
+            costDay: a.costDay,
+            runsAll: a.runsAll,
+            tokensIn24h: a.tokensIn24h,
+            tokensOut24h: a.tokensOut24h,
+            costAll: a.costAll,
+            latencyAvg: a.latencyAvg,
+            uptime: a.uptime,
+            // 3D visualization data
+            px: pos.px,
+            pz: pos.pz,
+            color: AGENT_COLORS[agentId] || AGENT_COLORS.default,
+            emoji: AGENT_EMOJIS[agentId] || AGENT_EMOJIS.default,
+            task: a.status === 'active' ? 'Processing tasks' : a.status === 'idle' ? 'Waiting for tasks' : 'Offline'
+        };
+    });
 });
 // Get agent by ID
 server.get('/api/agents/:id', async (request, reply) => {
@@ -151,6 +222,8 @@ server.get('/api/agents/:id', async (request, reply) => {
         reply.code(404);
         return { error: 'Agent not found' };
     }
+    const agentId = agent.id.toLowerCase();
+    const pos = AGENT_POSITIONS[agentId] || { px: Math.random() * 4 - 2, pz: Math.random() * 4 - 2 };
     return {
         id: agent.id,
         name: agent.name,
@@ -168,6 +241,12 @@ server.get('/api/agents/:id', async (request, reply) => {
         costAll: agent.costAll,
         latencyAvg: agent.latencyAvg,
         uptime: agent.uptime,
+        // 3D visualization data
+        px: pos.px,
+        pz: pos.pz,
+        color: AGENT_COLORS[agentId] || AGENT_COLORS.default,
+        emoji: AGENT_EMOJIS[agentId] || AGENT_EMOJIS.default,
+        task: agent.status === 'active' ? 'Processing tasks' : agent.status === 'idle' ? 'Waiting for tasks' : 'Offline'
     };
 });
 // Get logs for a specific agent
@@ -319,151 +398,146 @@ server.get('/api/services', async () => {
     return knownServices;
 });
 // Get dashboard overview - CRITICAL endpoint for frontend
+// ENHANCED VERSION BELOW - This stub prevents 404 until the full implementation loads
 server.get('/api/dashboard/overview', async () => {
+    // Get all agents for calculations
+    const agents = await prisma.agent.findMany();
+    // Calculate tokens (sum of tokensIn24h + tokensOut24h)
+    const totalTokens = agents.reduce((sum, a) => sum + (a.tokensIn24h || 0) + (a.tokensOut24h || 0), 0);
+    // Format tokens: if > 1000, show as "X.Xk"
+    const formatTokens = (tokens) => {
+        if (tokens >= 1000) {
+            return (tokens / 1000).toFixed(1) + 'k';
+        }
+        return tokens.toString();
+    };
+    // Calculate costToday (sum of costDay)
+    const totalCost = agents.reduce((sum, a) => sum + (a.costDay || 0), 0);
+    // Format cost: show as "$X.XX"
+    const formatCost = (cost) => {
+        return '$' + cost.toFixed(2);
+    };
+    // Calculate uptime: average of all agents' uptime
+    const avgUptime = agents.length > 0
+        ? agents.reduce((sum, a) => sum + (a.uptime || 100), 0) / agents.length
+        : 100;
+    // Format uptime: show as "XX.XX%"
+    const formatUptime = (uptime) => {
+        return uptime.toFixed(2) + '%';
+    };
+    // Count active agents (status === 'active')
+    const activeAgents = agents.filter(a => a.status === 'active').length;
+    const stats = {
+        tokens: formatTokens(totalTokens),
+        costToday: formatCost(totalCost),
+        uptime: formatUptime(avgUptime),
+        models: `${activeAgents} online`
+    };
+    return { stats };
+});
+// Get missions (runs mapped to missions format) - REPLACED BY ENHANCED VERSION BELOW
+// See enhanced /api/missions endpoint after the scheduler section
+// GET /api/opportunities - Opportunities for the feed
+server.get('/api/opportunities', async () => {
     try {
-        // Get stats
-        const [agentsRunning, activeMissions, pendingApproval, costToday] = await Promise.all([
-            prisma.agent.count({ where: { status: 'active' } }),
-            prisma.run.count({ where: { status: 'running' } }),
-            prisma.run.count({ where: { status: 'queued' } }),
-            prisma.agent.aggregate({ _sum: { costDay: true } }).then(r => r._sum.costDay || 0)
-        ]);
-        // Get agents
-        const agents = await prisma.agent.findMany({ orderBy: { name: 'asc' } });
-        const agentsMapped = agents.map(a => ({
-            id: a.id,
-            name: a.name,
-            status: a.status,
-            type: a.type,
-            provider: a.provider,
-            model: a.model,
-            description: a.description,
-            runs24h: a.runs24h,
-            err24h: a.err24h,
-            costDay: a.costDay,
-            runsAll: a.runsAll,
-            tokensIn24h: a.tokensIn24h,
-            tokensOut24h: a.tokensOut24h,
-            costAll: a.costAll,
-            latencyAvg: a.latencyAvg,
-            uptime: a.uptime,
+        // Get recent runs as opportunities
+        const runs = await prisma.run.findMany({
+            orderBy: { startedAt: 'desc' },
+            take: 20
+        });
+        // Generate opportunities from runs and other activities
+        const opportunities = runs.map((r, index) => ({
+            id: `opp_${r.id}`,
+            title: r.label || `Opportunity ${index + 1}`,
+            description: `Run from ${r.source} using ${r.model}`,
+            type: r.status === 'failed' ? 'error' : r.status === 'finished' ? 'success' : 'info',
+            status: r.status,
+            agent: r.source,
+            value: Math.floor(Math.random() * 1000) + 100,
+            timestamp: r.startedAt?.getTime() || Date.now(),
+            tags: [r.source, r.model.split('/')[0] || 'unknown'],
+            priority: r.status === 'failed' ? 'high' : r.status === 'running' ? 'medium' : 'low'
         }));
-        // Get missions (runs mapped to missions)
+        return opportunities;
+    }
+    catch (error) {
+        console.error('Error fetching opportunities:', error);
+        return [];
+    }
+});
+// GET /api/artifacts - Artifacts produced by agents
+server.get('/api/artifacts', async () => {
+    try {
+        // Get recent runs as artifacts source
         const runs = await prisma.run.findMany({
             orderBy: { startedAt: 'desc' },
             take: 50
         });
-        const missions = runs.map(r => ({
-            id: r.id,
-            title: r.label || `Mission ${r.id.slice(0, 8)}`,
-            description: `Run from ${r.source} using ${r.model}`,
-            status: r.status,
+        // Generate artifacts from runs
+        const artifacts = runs.map((r, index) => ({
+            id: `art_${r.id}`,
+            name: `${r.label || 'Artifact'}_${index + 1}`,
+            type: r.status === 'finished' ? 'output' : r.status === 'failed' ? 'error' : 'processing',
+            format: 'json',
+            size: Math.floor(Math.random() * 10000) + 100,
             agent: r.source,
-            priority: r.status === 'failed' ? 'high' : r.status === 'running' ? 'medium' : 'low',
-            progress: r.status === 'finished' ? 100 : r.status === 'running' ? 50 : 0,
-            dueDate: r.startedAt ? new Date(r.startedAt.getTime() + 24 * 60 * 60 * 1000).toISOString() : null
+            missionId: r.id,
+            status: r.status,
+            createdAt: r.startedAt?.getTime() || Date.now(),
+            url: `/api/artifacts/${r.id}/download`
         }));
-        // Get activity (last 10 logs)
-        const logs = await prisma.logEntry.findMany({
-            orderBy: { timestamp: 'desc' },
-            take: 10
-        });
-        const activity = logs.map(l => ({
-            id: l.id,
-            timestamp: l.timestamp.getTime(),
-            level: l.level,
-            source: l.source,
-            message: l.message
-        }));
-        // Get services for health
-        const services = await prisma.service.findMany({ orderBy: { name: 'asc' } });
-        const servicesMapped = services.length > 0
-            ? services.map(s => ({
-                name: s.name,
-                status: s.status,
-                host: s.host,
-                port: s.port,
-                latencyMs: s.latencyMs,
-                cpuPct: s.cpuPct,
-                memPct: s.memPct,
-                version: s.version,
-            }))
-            : [
-                { name: 'PostgreSQL', status: 'healthy', host: 'postgres-15m.railway.internal', port: 5432, latencyMs: 5, cpuPct: 15, memPct: 20, version: '15.x' },
-                { name: 'Redis', status: 'healthy', host: 'redis-production.up.railway.app', port: 6379, latencyMs: 2, cpuPct: 5, memPct: 10, version: '7.x' },
-                { name: 'OpenClaw Gateway', status: 'online', host: 'localhost', port: 3000, latencyMs: 0, cpuPct: 0, memPct: 0, version: '1.0.0' },
-                { name: 'Backend API', status: 'healthy', host: 'agent-dashboard-backend-production.up.railway.app', port: 443, latencyMs: 10, cpuPct: 10, memPct: 15, version: '1.0.0' }
-            ];
-        return {
-            stats: {
-                agentsRunning,
-                activeMissions,
-                pendingApproval,
-                costToday
-            },
-            agents: agentsMapped,
-            missions,
-            activity,
-            health: {
-                status: 'ok',
-                services: servicesMapped
-            }
-        };
+        return artifacts;
     }
     catch (error) {
-        console.error('Error in dashboard overview:', error);
-        return {
-            stats: { agentsRunning: 0, activeMissions: 0, pendingApproval: 0, costToday: 0 },
-            agents: [],
-            missions: [],
-            activity: [],
-            health: { status: 'error', services: [] }
-        };
-    }
-});
-// Get missions (runs mapped to missions format)
-server.get('/api/missions', async () => {
-    try {
-        const runs = await prisma.run.findMany({
-            orderBy: { startedAt: 'desc' },
-            take: 100
-        });
-        return runs.map(r => ({
-            id: r.id,
-            title: r.label || `Mission ${r.id.slice(0, 8)}`,
-            description: `Run from ${r.source} using ${r.model}`,
-            status: r.status,
-            agent: r.source,
-            priority: r.status === 'failed' ? 'high' : r.status === 'running' ? 'medium' : 'low',
-            progress: r.status === 'finished' ? 100 : r.status === 'running' ? 50 : 0,
-            dueDate: r.startedAt ? new Date(r.startedAt.getTime() + 24 * 60 * 60 * 1000).toISOString() : null
-        }));
-    }
-    catch (error) {
-        console.error('Error fetching missions:', error);
+        console.error('Error fetching artifacts:', error);
         return [];
     }
 });
-// Get activity (last 20 logs)
-server.get('/api/activity', async () => {
+// GET /api/inbox - Messages in inbox
+server.get('/api/inbox', async () => {
     try {
+        // Get recent logs as inbox messages
         const logs = await prisma.logEntry.findMany({
             orderBy: { timestamp: 'desc' },
+            take: 50
+        });
+        // Get recent sessions
+        const sessions = await prisma.session.findMany({
+            orderBy: { lastSeenAt: 'desc' },
             take: 20
         });
-        return logs.map(l => ({
-            id: l.id,
+        // Combine logs and sessions as inbox messages
+        const logMessages = logs.map((l, index) => ({
+            id: `msg_log_${l.id}`,
+            type: l.level === 'ERROR' ? 'error' : l.level === 'WARN' ? 'warning' : 'info',
+            title: l.source,
+            message: l.message,
+            sender: l.source,
             timestamp: l.timestamp.getTime(),
-            level: l.level,
-            source: l.source,
-            message: l.message
+            read: index > 10, // First 10 are unread
+            priority: l.level === 'ERROR' ? 'high' : l.level === 'WARN' ? 'medium' : 'low',
+            metadata: l.extra
         }));
+        const sessionMessages = sessions.map((s, index) => ({
+            id: `msg_sess_${s.id}`,
+            type: 'session',
+            title: `Session ${s.agentName || 'Unknown'}`,
+            message: `Session status: ${s.status}`,
+            sender: s.agentName || 'System',
+            timestamp: s.lastSeenAt?.getTime() || Date.now(),
+            read: index > 5,
+            priority: s.status === 'active' ? 'medium' : 'low',
+            metadata: { model: s.model, tokens24h: s.tokens24h }
+        }));
+        return [...logMessages, ...sessionMessages].sort((a, b) => b.timestamp - a.timestamp);
     }
     catch (error) {
-        console.error('Error fetching activity:', error);
+        console.error('Error fetching inbox:', error);
         return [];
     }
 });
+// Get activity - ENHANCED VERSION BELOW
+// See /api/activity endpoint in MDX Control section for real-time activity feed
 // Get token usage data for Token Usage tab
 // Get token usage data - uses Agent table for real data
 server.get('/api/tokens', async () => {
@@ -579,24 +653,34 @@ server.get('/agents', async () => {
     const agents = await prisma.agent.findMany({
         orderBy: { name: 'asc' }
     });
-    return agents.map(a => ({
-        id: a.id,
-        name: a.name,
-        status: a.status,
-        type: a.type,
-        provider: a.provider,
-        model: a.model,
-        description: a.description,
-        runs24h: a.runs24h,
-        err24h: a.err24h,
-        costDay: a.costDay,
-        runsAll: a.runsAll,
-        tokensIn24h: a.tokensIn24h,
-        tokensOut24h: a.tokensOut24h,
-        costAll: a.costAll,
-        latencyAvg: a.latencyAvg,
-        uptime: a.uptime,
-    }));
+    return agents.map(a => {
+        const agentId = a.id.toLowerCase();
+        const pos = AGENT_POSITIONS[agentId] || { px: Math.random() * 4 - 2, pz: Math.random() * 4 - 2 };
+        return {
+            id: a.id,
+            name: a.name,
+            status: a.status,
+            type: a.type,
+            provider: a.provider,
+            model: a.model,
+            description: a.description,
+            runs24h: a.runs24h,
+            err24h: a.err24h,
+            costDay: a.costDay,
+            runsAll: a.runsAll,
+            tokensIn24h: a.tokensIn24h,
+            tokensOut24h: a.tokensOut24h,
+            costAll: a.costAll,
+            latencyAvg: a.latencyAvg,
+            uptime: a.uptime,
+            // 3D visualization data
+            px: pos.px,
+            pz: pos.pz,
+            color: AGENT_COLORS[agentId] || AGENT_COLORS.default,
+            emoji: AGENT_EMOJIS[agentId] || AGENT_EMOJIS.default,
+            task: a.status === 'active' ? 'Processing tasks' : a.status === 'idle' ? 'Waiting for tasks' : 'Offline'
+        };
+    });
 });
 server.get('/sessions', async () => {
     const sessions = await prisma.session.findMany({
@@ -1144,85 +1228,495 @@ console.log('✅ Dashboard fixes loaded: Token Usage (Agent data), Auto-logging,
 // =====================================================
 // PHASE 3: Advanced Endpoints
 // =====================================================
-// --- BrainX Endpoints ---
-// GET /api/brainx/memories - List all memories
-server.get('/api/brainx/memories', async (request) => {
-    const { limit = 50, offset = 0, agentId, sessionId } = request.query;
-    const where = {};
-    if (agentId)
-        where.agentId = agentId;
-    if (sessionId)
-        where.sessionId = sessionId;
-    const memories = await prisma.memory.findMany({
-        where,
-        orderBy: { createdAt: 'desc' },
-        take: Math.min(Number(limit), 100),
-        skip: Number(offset)
-    });
-    return {
-        memories: memories.map(m => ({
-            id: m.id,
-            vectorId: m.vectorId,
-            content: m.content,
-            metadata: m.metadata,
-            agentId: m.agentId,
-            sessionId: m.sessionId,
-            createdAt: m.createdAt.getTime()
-        })),
-        total: await prisma.memory.count({ where })
-    };
-});
-// POST /api/brainx/search - Semantic search (simulated - real impl uses vector DB)
-server.post('/api/brainx/search', async (request) => {
-    const { query, limit = 10, agentId, sessionId } = request.body;
-    if (!query) {
-        return { error: 'Query is required' };
+// --- BrainX Endpoints (Real BrainX V4 Database) ---
+// GET /api/brainx/health - Check BrainX database connection
+server.get('/api/brainx/health', async () => {
+    try {
+        const result = await getBrainXPool().query('SELECT 1 as test');
+        const memCount = await getBrainXPool().query('SELECT COUNT(*) as count FROM brainx_memories');
+        return {
+            status: 'connected',
+            database: 'brainx_v3',
+            memories: parseInt(memCount.rows[0].count),
+            timestamp: Date.now()
+        };
     }
-    // For now, do a basic text search
-    // In production, this would query the actual vector DB
-    const memories = await prisma.memory.findMany({
-        where: {
-            content: { contains: query, mode: 'insensitive' },
-            ...(agentId ? { agentId } : {}),
-            ...(sessionId ? { sessionId } : {})
-        },
-        orderBy: { createdAt: 'desc' },
-        take: Math.min(Number(limit), 50)
-    });
-    return {
-        query,
-        results: memories.map(m => ({
-            id: m.id,
-            vectorId: m.vectorId,
-            content: m.content,
-            metadata: m.metadata,
-            score: 1.0 // Placeholder for vector similarity score
-        })),
-        count: memories.length
-    };
+    catch (error) {
+        return {
+            status: 'disconnected',
+            database: 'brainx_v3',
+            error: error.message,
+            timestamp: Date.now()
+        };
+    }
 });
-// GET /api/brainx/stats - Memory statistics
+// GET /api/brainx/stats - Memory statistics from real BrainX database
 server.get('/api/brainx/stats', async () => {
-    const totalMemories = await prisma.memory.count();
-    // Get memories by agent
-    const byAgent = await prisma.memory.groupBy({
-        by: ['agentId'],
-        _count: true
-    });
-    // Get recent activity (last 24h)
-    const dayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
-    const recentCount = await prisma.memory.count({
-        where: { createdAt: { gte: dayAgo } }
-    });
-    return {
-        totalMemories,
-        recent24h: recentCount,
-        byAgent: byAgent.map(a => ({
-            agentId: a.agentId || 'unknown',
-            count: a._count
-        })),
-        timestamp: Date.now()
-    };
+    try {
+        // Total memories
+        const totalResult = await getBrainXPool().query('SELECT COUNT(*) as total FROM brainx_memories');
+        const totalMemories = parseInt(totalResult.rows[0].total);
+        // Memories added today
+        const todayStart = new Date();
+        todayStart.setHours(0, 0, 0, 0);
+        const todayResult = await getBrainXPool().query('SELECT COUNT(*) as count FROM brainx_memories WHERE created_at >= $1', [todayStart]);
+        const todayCount = parseInt(todayResult.rows[0].count);
+        // By tier
+        const tierResult = await getBrainXPool().query('SELECT tier, COUNT(*) as count FROM brainx_memories GROUP BY tier');
+        const byTier = tierResult.rows.map(r => ({ tier: r.tier, count: parseInt(r.count) }));
+        // By agent
+        const agentResult = await getBrainXPool().query('SELECT agent, COUNT(*) as count FROM brainx_memories WHERE agent IS NOT NULL GROUP BY agent ORDER BY count DESC');
+        const byAgent = agentResult.rows.map(r => ({ agent: r.agent, count: parseInt(r.count) }));
+        // By context/workspace
+        const contextResult = await getBrainXPool().query('SELECT context, COUNT(*) as count FROM brainx_memories WHERE context IS NOT NULL GROUP BY context ORDER BY count DESC LIMIT 10');
+        const byContext = contextResult.rows.map(r => ({ context: r.context, count: parseInt(r.count) }));
+        // By type
+        const typeResult = await getBrainXPool().query('SELECT type, COUNT(*) as count FROM brainx_memories GROUP BY type');
+        const byType = typeResult.rows.map(r => ({ type: r.type, count: parseInt(r.count) }));
+        // By status
+        const statusResult = await getBrainXPool().query('SELECT status, COUNT(*) as count FROM brainx_memories GROUP BY status');
+        const byStatus = statusResult.rows.map(r => ({ status: r.status, count: parseInt(r.count) }));
+        // Calculate approximate database size (based on row count and avg size)
+        const avgSizeResult = await getBrainXPool().query('SELECT pg_total_relation_size(\'brainx_memories\') as size');
+        const dbSize = parseInt(avgSizeResult.rows[0].size) || 0;
+        // Active memories (hot + warm)
+        const activeResult = await getBrainXPool().query("SELECT COUNT(*) as count FROM brainx_memories WHERE tier IN ('hot', 'warm')");
+        const activeMemories = parseInt(activeResult.rows[0].count);
+        return {
+            totalMemories,
+            activeMemories,
+            todayCount,
+            dbSize,
+            byTier,
+            byAgent,
+            byContext,
+            byType,
+            byStatus,
+            timestamp: Date.now()
+        };
+    }
+    catch (error) {
+        console.error('BrainX stats error:', error.message);
+        return {
+            error: error.message,
+            timestamp: Date.now()
+        };
+    }
+});
+// GET /api/brainx/memories - List all memories from real BrainX database
+server.get('/api/brainx/memories', async (request) => {
+    try {
+        const { limit = 50, offset = 0, type, tier, agent, context, status, search } = request.query;
+        let query = 'SELECT * FROM brainx_memories WHERE 1=1';
+        const params = [];
+        let paramIndex = 1;
+        if (type) {
+            query += ` AND type = $${paramIndex}`;
+            params.push(type);
+            paramIndex++;
+        }
+        if (tier) {
+            query += ` AND tier = $${paramIndex}`;
+            params.push(tier);
+            paramIndex++;
+        }
+        if (agent) {
+            query += ` AND agent = $${paramIndex}`;
+            params.push(agent);
+            paramIndex++;
+        }
+        if (context) {
+            query += ` AND context = $${paramIndex}`;
+            params.push(context);
+            paramIndex++;
+        }
+        if (status) {
+            query += ` AND status = $${paramIndex}`;
+            params.push(status);
+            paramIndex++;
+        }
+        if (search) {
+            query += ` AND (content ILIKE $${paramIndex} OR id ILIKE $${paramIndex})`;
+            params.push(`%${search}%`);
+            paramIndex++;
+        }
+        // Get total count
+        const countQuery = query.replace('SELECT *', 'SELECT COUNT(*) as total');
+        const countResult = await getBrainXPool().query(countQuery, params);
+        const total = parseInt(countResult.rows[0].total);
+        // Get paginated results
+        query += ' ORDER BY created_at DESC LIMIT $' + paramIndex + ' OFFSET $' + (paramIndex + 1);
+        params.push(Math.min(Number(limit), 100), Number(offset));
+        const result = await getBrainXPool().query(query, params);
+        return {
+            memories: result.rows.map(m => ({
+                id: m.id,
+                type: m.type,
+                content: m.content,
+                context: m.context,
+                tier: m.tier,
+                agent: m.agent,
+                importance: m.importance,
+                tags: m.tags || [],
+                status: m.status,
+                category: m.category,
+                createdAt: m.created_at ? new Date(m.created_at).getTime() : null,
+                lastAccessed: m.last_accessed ? new Date(m.last_accessed).getTime() : null,
+                accessCount: m.access_count
+            })),
+            total,
+            limit: Number(limit),
+            offset: Number(offset)
+        };
+    }
+    catch (error) {
+        console.error('BrainX memories error:', error.message);
+        return { error: error.message, memories: [], total: 0 };
+    }
+});
+// POST /api/brainx/search - Semantic search using vector similarity
+server.post('/api/brainx/search', async (request) => {
+    try {
+        const { query, limit = 10, minSimilarity = 0.3, type, tier, context, agent } = request.body;
+        if (!query) {
+            return { error: 'Query is required' };
+        }
+        // First, get the embedding for the query using OpenAI
+        const openaiKey = process.env.OPENAI_API_KEY;
+        if (!openaiKey) {
+            // Fallback to basic text search if no API key
+            let sql = 'SELECT * FROM brainx_memories WHERE (content ILIKE $1 OR id ILIKE $1)';
+            const params = [`%${query}%`];
+            let paramIndex = 2;
+            if (type) {
+                sql += ` AND type = $${paramIndex}`;
+                params.push(type);
+                paramIndex++;
+            }
+            if (tier) {
+                sql += ` AND tier = $${paramIndex}`;
+                params.push(tier);
+                paramIndex++;
+            }
+            if (context) {
+                sql += ` AND context = $${paramIndex}`;
+                params.push(context);
+                paramIndex++;
+            }
+            if (agent) {
+                sql += ` AND agent = $${paramIndex}`;
+                params.push(agent);
+                paramIndex++;
+            }
+            sql += ` ORDER BY importance DESC, created_at DESC LIMIT $${paramIndex}`;
+            params.push(Number(limit));
+            const result = await getBrainXPool().query(sql, params);
+            return {
+                query,
+                results: result.rows.map(m => ({
+                    id: m.id,
+                    type: m.type,
+                    content: m.content,
+                    context: m.context,
+                    tier: m.tier,
+                    agent: m.agent,
+                    importance: m.importance,
+                    tags: m.tags || [],
+                    score: 0.5, // Fake score for text search
+                    createdAt: m.created_at ? new Date(m.created_at).getTime() : null
+                })),
+                count: result.rows.length,
+                type: 'text-search'
+            };
+        }
+        // Get embedding from OpenAI
+        const embedResponse = await fetch('https://api.openai.com/v1/embeddings', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${openaiKey}`
+            },
+            body: JSON.stringify({
+                model: 'text-embedding-3-small',
+                input: query
+            })
+        });
+        if (!embedResponse.ok) {
+            throw new Error(`OpenAI API error: ${embedResponse.status}`);
+        }
+        const embedData = await embedResponse.json();
+        const embedding = embedData.data[0].embedding;
+        // Search using vector similarity
+        let sql = `
+      SELECT id, type, content, context, tier, agent, importance, tags, created_at,
+             (embedding <=> $1::vector) as similarity
+      FROM brainx_memories
+      WHERE embedding IS NOT NULL
+        AND (embedding <=> $1::vector) < $2
+    `;
+        const params = [JSON.stringify(embedding), 1 - minSimilarity];
+        let paramIndex = 3;
+        if (type) {
+            sql += ` AND type = $${paramIndex}`;
+            params.push(type);
+            paramIndex++;
+        }
+        if (tier) {
+            sql += ` AND tier = $${paramIndex}`;
+            params.push(tier);
+            paramIndex++;
+        }
+        if (context) {
+            sql += ` AND context = $${paramIndex}`;
+            params.push(context);
+            paramIndex++;
+        }
+        if (agent) {
+            sql += ` AND agent = $${paramIndex}`;
+            params.push(agent);
+            paramIndex++;
+        }
+        sql += ` ORDER BY similarity ASC LIMIT $${paramIndex}`;
+        params.push(Number(limit));
+        const result = await getBrainXPool().query(sql, params);
+        // Log the query
+        try {
+            await getBrainXPool().query('INSERT INTO brainx_query_log (id, query, results_count, similarity_threshold, created_at) VALUES ($1, $2, $3, $4, NOW())', [`query_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`, query, result.rows.length, minSimilarity]);
+        }
+        catch (e) { }
+        return {
+            query,
+            results: result.rows.map(m => ({
+                id: m.id,
+                type: m.type,
+                content: m.content,
+                context: m.context,
+                tier: m.tier,
+                agent: m.agent,
+                importance: m.importance,
+                tags: m.tags || [],
+                score: 1 - parseFloat(m.similarity), // Convert distance to similarity
+                createdAt: m.created_at ? new Date(m.created_at).getTime() : null
+            })),
+            count: result.rows.length,
+            type: 'vector-search'
+        };
+    }
+    catch (error) {
+        console.error('BrainX search error:', error.message);
+        return { error: error.message, results: [], count: 0 };
+    }
+});
+// GET /api/brainx/workspaces - List all workspaces/contexts
+server.get('/api/brainx/workspaces', async () => {
+    try {
+        const result = await getBrainXPool().query(`
+      SELECT context, 
+             COUNT(*) as memory_count,
+             MAX(created_at) as last_memory,
+             COUNT(DISTINCT agent) as agent_count
+      FROM brainx_memories 
+      WHERE context IS NOT NULL AND context != ''
+      GROUP BY context 
+      ORDER BY memory_count DESC
+    `);
+        return {
+            workspaces: result.rows.map(r => ({
+                name: r.context,
+                memoryCount: parseInt(r.memory_count),
+                lastMemory: r.last_memory ? new Date(r.last_memory).getTime() : null,
+                agentCount: parseInt(r.agent_count)
+            }))
+        };
+    }
+    catch (error) {
+        console.error('BrainX workspaces error:', error.message);
+        return { error: error.message, workspaces: [] };
+    }
+});
+// GET /api/brainx/activity - Recent BrainX activity
+server.get('/api/brainx/activity', async () => {
+    try {
+        // Recent memories added
+        const memoriesResult = await getBrainXPool().query(`
+      SELECT id, type, content, agent, context, created_at
+      FROM brainx_memories 
+      ORDER BY created_at DESC 
+      LIMIT 10
+    `);
+        // Query log (recent searches)
+        let queryLogResult;
+        try {
+            queryLogResult = await getBrainXPool().query(`
+        SELECT query, results_count, created_at
+        FROM brainx_query_log 
+        ORDER BY created_at DESC 
+        LIMIT 10
+      `);
+        }
+        catch (e) {
+            queryLogResult = { rows: [] };
+        }
+        // Activity summary
+        const summaryResult = await getBrainXPool().query(`
+      SELECT 
+        (SELECT COUNT(*) FROM brainx_memories WHERE created_at >= NOW() - INTERVAL '1 hour') as last_hour,
+        (SELECT COUNT(*) FROM brainx_memories WHERE created_at >= NOW() - INTERVAL '24 hours') as last_24h,
+        (SELECT COUNT(*) FROM brainx_memories WHERE created_at >= NOW() - INTERVAL '7 days') as last_7d
+    `);
+        return {
+            recentMemories: memoriesResult.rows.map(m => ({
+                id: m.id,
+                type: m.type,
+                content: m.content?.substring(0, 100) + (m.content?.length > 100 ? '...' : ''),
+                agent: m.agent,
+                context: m.context,
+                createdAt: m.created_at ? new Date(m.created_at).getTime() : null
+            })),
+            recentQueries: queryLogResult.rows.map(q => ({
+                query: q.query,
+                resultsCount: q.results_count,
+                createdAt: q.created_at ? new Date(q.created_at).getTime() : null
+            })),
+            summary: {
+                lastHour: parseInt(summaryResult.rows[0].last_hour),
+                last24h: parseInt(summaryResult.rows[0].last_24h),
+                last7d: parseInt(summaryResult.rows[0].last_7d)
+            },
+            timestamp: Date.now()
+        };
+    }
+    catch (error) {
+        console.error('BrainX activity error:', error.message);
+        return { error: error.message, recentMemories: [], recentQueries: [], timestamp: Date.now() };
+    }
+});
+// GET /api/brainx/insights - Query insights and analytics
+server.get('/api/brainx/insights', async () => {
+    try {
+        // Most queried topics (from query log)
+        let topQueries = [];
+        try {
+            const queryResult = await getBrainXPool().query(`
+        SELECT query, COUNT(*) as count, AVG(results_count) as avg_results
+        FROM brainx_query_log 
+        WHERE created_at >= NOW() - INTERVAL '7 days'
+        GROUP BY query 
+        ORDER BY count DESC 
+        LIMIT 10
+      `);
+            topQueries = queryResult.rows.map(r => ({
+                query: r.query,
+                count: parseInt(r.count),
+                avgResults: parseFloat(r.avg_results)
+            }));
+        }
+        catch (e) {
+            topQueries = [];
+        }
+        // Most active workspaces
+        const workspaceResult = await getBrainXPool().query(`
+      SELECT context, COUNT(*) as memory_count, MAX(created_at) as last_activity
+      FROM brainx_memories 
+      WHERE context IS NOT NULL 
+        AND created_at >= NOW() - INTERVAL '7 days'
+      GROUP BY context 
+      ORDER BY memory_count DESC 
+      LIMIT 5
+    `);
+        // Embeddings below threshold (low similarity scores)
+        const lowQualityResult = await getBrainXPool().query(`
+      SELECT COUNT(*) as count FROM brainx_memories 
+      WHERE embedding IS NULL OR importance < 3
+    `);
+        // Recently indexed workspaces
+        const recentIndexResult = await getBrainXPool().query(`
+      SELECT context, MAX(created_at) as indexed_at
+      FROM brainx_memories 
+      WHERE context IS NOT NULL 
+        AND created_at >= NOW() - INTERVAL '24 hours'
+      GROUP BY context
+      ORDER BY indexed_at DESC
+    `);
+        return {
+            topQueries,
+            topWorkspaces: workspaceResult.rows.map(r => ({
+                context: r.context,
+                memoryCount: parseInt(r.memory_count),
+                lastActivity: r.last_activity ? new Date(r.last_activity).getTime() : null
+            })),
+            lowQualityEmbeddings: parseInt(lowQualityResult.rows[0].count),
+            recentlyIndexed: recentIndexResult.rows.map(r => ({
+                context: r.context,
+                indexedAt: r.indexed_at ? new Date(r.indexed_at).getTime() : null
+            })),
+            timestamp: Date.now()
+        };
+    }
+    catch (error) {
+        console.error('BrainX insights error:', error.message);
+        return { error: error.message, timestamp: Date.now() };
+    }
+});
+// POST /api/brainx/inject - Inject memories for a specific context
+server.post('/api/brainx/inject', async (request) => {
+    try {
+        const { query, limit = 5, context, tier = 'hot,warm' } = request.body;
+        if (!query) {
+            return { error: 'Query is required' };
+        }
+        // Get embedding
+        const openaiKey = process.env.OPENAI_API_KEY;
+        if (!openaiKey) {
+            return { error: 'OPENAI_API_KEY not configured' };
+        }
+        const embedResponse = await fetch('https://api.openai.com/v1/embeddings', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${openaiKey}`
+            },
+            body: JSON.stringify({
+                model: 'text-embedding-3-small',
+                input: query
+            })
+        });
+        const embedData = await embedResponse.json();
+        const embedding = embedData.data[0].embedding;
+        const tiers = tier.split(',');
+        let sql = `
+      SELECT id, type, content, context, tier, agent, importance, tags, created_at,
+             (embedding <=> $1::vector) as similarity
+      FROM brainx_memories
+      WHERE embedding IS NOT NULL
+        AND tier = ANY($2::text[])
+    `;
+        const params = [JSON.stringify(embedding), tiers];
+        let paramIndex = 3;
+        if (context) {
+            sql += ` AND context = $${paramIndex}`;
+            params.push(context);
+            paramIndex++;
+        }
+        sql += ` ORDER BY similarity ASC LIMIT $${paramIndex}`;
+        params.push(Number(limit));
+        const result = await getBrainXPool().query(sql, params);
+        // Format for injection
+        const injectedMemories = result.rows.map(m => {
+            const sim = 1 - parseFloat(m.similarity);
+            return `[sim:${sim.toFixed(2)} imp:${m.importance} tier:${m.tier} type:${m.type} agent:${m.agent || 'unknown'} ctx:${m.context || 'global'}]\n${m.content}`;
+        });
+        return {
+            query,
+            memories: injectedMemories,
+            count: injectedMemories.length,
+            formatted: injectedMemories.join('\n\n---\n\n')
+        };
+    }
+    catch (error) {
+        console.error('BrainX inject error:', error.message);
+        return { error: error.message };
+    }
 });
 // --- Connections Endpoints ---
 // GET /api/connections - List all integrations
@@ -1376,6 +1870,333 @@ function calculateNextRun(cronExpression) {
     // Default: 1 hour
     return new Date(now.getTime() + 3600000);
 }
+// =====================================================
+// MDX Control - Missions Endpoints
+// =====================================================
+// Helper: Calculate progress based on run status and metrics
+function calculateProgress(run) {
+    if (!run)
+        return 0;
+    switch (run.status) {
+        case 'finished':
+            return 100;
+        case 'failed':
+            // Failed runs show 0% or could show partial progress
+            return 0;
+        case 'running':
+            // Running runs show 50% or calculate based on token usage vs estimated
+            const tokenProgress = run.tokensIn && run.tokensOut
+                ? Math.min(90, Math.round(((run.tokensIn + run.tokensOut) / 10000) * 100))
+                : 50;
+            return tokenProgress;
+        case 'queued':
+        default:
+            return 0;
+    }
+}
+// Helper: Get priority based on run source and tokens
+function getPriority(run) {
+    if (run.source === 'MAIN')
+        return 'high';
+    if (run.tokensIn + run.tokensOut > 10000)
+        return 'high';
+    if (run.tokensIn + run.tokensOut > 5000)
+        return 'medium';
+    return 'low';
+}
+// Get all missions - creates missions from real runs if table is empty
+server.get('/api/missions', async () => {
+    // DEBUG: Log mission generation
+    console.log('[MISSIONS_DEBUG] Starting /api/missions endpoint');
+    // Get existing missions from the Mission table
+    const existingMissions = await prisma.mission.findMany({
+        orderBy: { createdAt: 'desc' }
+    });
+    console.log('[MISSIONS_DEBUG] existingMissions count:', existingMissions.length);
+    // Get runs to calculate progress and create virtual missions
+    const runs = await prisma.run.findMany({
+        orderBy: { startedAt: 'desc' },
+        take: 100
+    });
+    console.log('[MISSIONS_DEBUG] runs count:', runs.length);
+    const runMap = new Map(runs.map(r => [r.id, r]));
+    // Map existing missions with calculated progress
+    const tableMissions = existingMissions.map(m => {
+        const config = m.config;
+        const linkedRunId = config?.runId;
+        const linkedRun = linkedRunId ? runMap.get(linkedRunId) : null;
+        // Calculate real progress
+        const progress = linkedRun
+            ? calculateProgress(linkedRun)
+            : (config?.progress ?? (m.status === 'completed' ? 100 : m.status === 'active' ? 50 : 0));
+        return {
+            id: m.id,
+            name: m.name,
+            description: m.description,
+            status: m.status,
+            priority: m.priority,
+            owner: m.owner,
+            progress,
+            config: {
+                ...config,
+                progress,
+                tokensIn: linkedRun?.tokensIn || config?.tokensIn || 0,
+                tokensOut: linkedRun?.tokensOut || config?.tokensOut || 0,
+                model: linkedRun?.model || config?.model,
+                runStatus: linkedRun?.status || config?.runStatus
+            },
+            createdAt: m.createdAt.getTime(),
+            updatedAt: m.updatedAt.getTime()
+        };
+    });
+    console.log('[MISSIONS_DEBUG] tableMissions count:', tableMissions.length);
+    // ALWAYS create virtual missions from real runs (combines with table missions)
+    // Use the runs already fetched above (take only first 50 for virtual missions)
+    const runsForMissions = runs.slice(0, 50);
+    console.log('[MISSIONS_DEBUG] runsForMissions count:', runsForMissions.length);
+    // Also get sessions for additional context
+    const sessions = await prisma.session.findMany({
+        orderBy: { lastSeenAt: 'desc' },
+        take: 20
+    });
+    console.log('[MISSIONS_DEBUG] sessions count:', sessions.length);
+    // Create missions from runs
+    const runMissions = runsForMissions.map((run, index) => {
+        const progress = calculateProgress(run);
+        const priority = getPriority(run);
+        console.log(`[MISSIONS_DEBUG] Processing run ${index + 1}/${runsForMissions.length}: id=${run.id}, status=${run.status}, progress=${progress}, priority=${priority}`);
+        // Map run status to mission status
+        let missionStatus = 'pending';
+        if (run.status === 'finished')
+            missionStatus = 'completed';
+        else if (run.status === 'running')
+            missionStatus = 'active';
+        else if (run.status === 'failed')
+            missionStatus = 'paused';
+        else if (run.status === 'queued')
+            missionStatus = 'pending';
+        return {
+            id: `mission_run_${run.id}`,
+            name: run.label || `Run ${run.source} - ${run.model}`,
+            description: `Agent execution: ${run.source} using ${run.model}`,
+            status: missionStatus,
+            priority,
+            owner: run.source === 'MAIN' ? 'Main Agent' : run.source === 'SUBAGENT' ? 'Sub-Agent' : 'System',
+            progress,
+            config: {
+                runId: run.id,
+                source: run.source,
+                model: run.model,
+                tokensIn: run.tokensIn,
+                tokensOut: run.tokensOut,
+                duration: run.duration,
+                contextPct: run.contextPct,
+                runStatus: run.status,
+                finishReason: run.finishReason,
+                progress
+            },
+            createdAt: run.startedAt.getTime(),
+            updatedAt: run.startedAt.getTime()
+        };
+    });
+    // Create missions from active sessions
+    const sessionMissions = sessions
+        .filter(s => s.status === 'active')
+        .slice(0, 5)
+        .map((session, index) => ({
+        id: `mission_session_${session.id}`,
+        name: `Session: ${session.agentName}`,
+        description: `Active session with ${session.model}`,
+        status: 'active',
+        priority: 'medium',
+        owner: session.agentName,
+        progress: Math.min(95, Math.round((session.tokens24h / 50000) * 100)) || 25,
+        config: {
+            sessionId: session.id,
+            model: session.model,
+            tokens24h: session.tokens24h,
+            progress: Math.min(95, Math.round((session.tokens24h / 50000) * 100)) || 25
+        },
+        createdAt: session.startedAt.getTime(),
+        updatedAt: session.lastSeenAt.getTime()
+    }));
+    console.log('[MISSIONS_DEBUG] sessionMissions count:', sessionMissions.length);
+    console.log('[MISSIONS_DEBUG] runMissions count:', runMissions.length);
+    // Combine and return: table missions + virtual missions from runs/sessions
+    const result = [...tableMissions, ...runMissions, ...sessionMissions];
+    console.log('[MISSIONS_DEBUG] FINAL result count:', result.length);
+    console.log('[MISSIONS_DEBUG] Breakdown - tableMissions:', tableMissions.length, 'runMissions:', runMissions.length, 'sessionMissions:', sessionMissions.length);
+    return result;
+});
+// Get mission by ID
+server.get('/api/missions/:id', async (request, reply) => {
+    const { id } = request.params;
+    const mission = await prisma.mission.findUnique({ where: { id } });
+    if (!mission) {
+        reply.code(404);
+        return { error: 'Mission not found' };
+    }
+    return {
+        id: mission.id,
+        name: mission.name,
+        description: mission.description,
+        status: mission.status,
+        priority: mission.priority,
+        owner: mission.owner,
+        config: mission.config,
+        createdAt: mission.createdAt.getTime(),
+        updatedAt: mission.updatedAt.getTime()
+    };
+});
+// Create new mission
+server.post('/api/missions', async (request, reply) => {
+    const body = request.body;
+    const newMission = await prisma.mission.create({
+        data: {
+            id: 'mission_' + Date.now(),
+            name: body?.name || 'New Mission',
+            description: body?.description || '',
+            status: body?.status || 'pending',
+            priority: body?.priority || 'medium',
+            owner: body?.owner || 'Admin',
+            config: body?.config || {}
+        }
+    });
+    return reply.code(201).send({
+        id: newMission.id,
+        name: newMission.name,
+        description: newMission.description,
+        status: newMission.status,
+        priority: newMission.priority,
+        owner: newMission.owner,
+        config: newMission.config,
+        createdAt: newMission.createdAt.getTime(),
+        updatedAt: newMission.updatedAt.getTime()
+    });
+});
+// Update mission
+server.patch('/api/missions/:id', async (request, reply) => {
+    const { id } = request.params;
+    const body = request.body;
+    // Verify mission exists
+    const existingMission = await prisma.mission.findUnique({ where: { id } });
+    if (!existingMission) {
+        reply.code(404);
+        return { error: 'Mission not found' };
+    }
+    const updatedMission = await prisma.mission.update({
+        where: { id },
+        data: {
+            ...(body?.name !== undefined && { name: body.name }),
+            ...(body?.description !== undefined && { description: body.description }),
+            ...(body?.status !== undefined && { status: body.status }),
+            ...(body?.priority !== undefined && { priority: body.priority }),
+            ...(body?.owner !== undefined && { owner: body.owner }),
+            ...(body?.config !== undefined && { config: body.config }),
+            updatedAt: new Date()
+        }
+    });
+    return {
+        id: updatedMission.id,
+        name: updatedMission.name,
+        description: updatedMission.description,
+        status: updatedMission.status,
+        priority: updatedMission.priority,
+        owner: updatedMission.owner,
+        config: updatedMission.config,
+        createdAt: updatedMission.createdAt.getTime(),
+        updatedAt: updatedMission.updatedAt.getTime()
+    };
+});
+// =====================================================
+// MDX Control - Activity Feed Endpoint
+// =====================================================
+server.get('/api/activity', async () => {
+    // Get real runs with detailed info
+    const runs = await prisma.run.findMany({
+        orderBy: { startedAt: 'desc' },
+        take: 50
+    });
+    // Get sessions for additional activity context
+    const sessions = await prisma.session.findMany({
+        orderBy: { lastSeenAt: 'desc' },
+        take: 20
+    });
+    // Get agents for context
+    const agents = await prisma.agent.findMany({
+        where: { status: 'active' }
+    });
+    // Map runs to activity feed with descriptive messages
+    const runActivities = runs.map(r => {
+        let message = '';
+        let type = 'run';
+        switch (r.status) {
+            case 'finished':
+                message = `✅ ${r.source} completed "${r.label}"`;
+                if (r.tokensOut > 0) {
+                    message += ` · ${r.tokensOut.toLocaleString()} tokens`;
+                }
+                if (r.duration) {
+                    message += ` · ${(r.duration / 1000).toFixed(1)}s`;
+                }
+                break;
+            case 'running':
+                message = `🔄 ${r.source} running "${r.label}"`;
+                if (r.model) {
+                    message += ` · ${r.model}`;
+                }
+                break;
+            case 'failed':
+                message = `❌ ${r.source} failed on "${r.label}"`;
+                if (r.finishReason) {
+                    message += ` · ${r.finishReason}`;
+                }
+                break;
+            case 'queued':
+                message = `⏳ ${r.source} queued "${r.label}"`;
+                break;
+            default:
+                message = `${r.source} · ${r.label} (${r.status})`;
+        }
+        return {
+            id: r.id,
+            type,
+            message,
+            status: r.status,
+            model: r.model,
+            source: r.source,
+            label: r.label,
+            tokensIn: r.tokensIn,
+            tokensOut: r.tokensOut,
+            timestamp: r.startedAt.getTime(),
+            duration: r.duration,
+            finishReason: r.finishReason
+        };
+    });
+    // Map sessions to activity
+    const sessionActivities = sessions.map(s => {
+        const isActive = s.status === 'active';
+        return {
+            id: s.id,
+            type: 'session',
+            message: isActive
+                ? `🟢 ${s.agentName} session active · ${s.tokens24h.toLocaleString()} tokens`
+                : `⚪ ${s.agentName} session ${s.status}`,
+            status: s.status,
+            model: s.model,
+            source: s.agentName,
+            agent: s.agentName,
+            tokens24h: s.tokens24h,
+            timestamp: s.lastSeenAt.getTime()
+        };
+    });
+    // Combine and sort by timestamp
+    const allActivities = [...runActivities, ...sessionActivities]
+        .sort((a, b) => b.timestamp - a.timestamp)
+        .slice(0, 50);
+    return allActivities;
+});
+// =====================================================
 // WebSocket Support for Real-time Events
 // =====================================================
 // Simple WebSocket broadcast function (works with compatible clients)

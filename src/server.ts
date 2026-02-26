@@ -2094,16 +2094,23 @@ function getPriority(run: any): string {
 
 // Get all missions - creates missions from real runs if table is empty
 server.get('/api/missions', async () => {
+  // DEBUG: Log mission generation
+  console.log('[MISSIONS_DEBUG] Starting /api/missions endpoint');
+  
   // Get existing missions from the Mission table
   const existingMissions = await prisma.mission.findMany({
     orderBy: { createdAt: 'desc' }
   });
+  
+  console.log('[MISSIONS_DEBUG] existingMissions count:', existingMissions.length);
   
   // Get runs to calculate progress and create virtual missions
   const runs = await prisma.run.findMany({
     orderBy: { startedAt: 'desc' },
     take: 100
   });
+  
+  console.log('[MISSIONS_DEBUG] runs count:', runs.length);
   
   const runMap = new Map(runs.map(r => [r.id, r]));
   
@@ -2139,9 +2146,13 @@ server.get('/api/missions', async () => {
     };
   });
   
+  console.log('[MISSIONS_DEBUG] tableMissions count:', tableMissions.length);
+  
   // ALWAYS create virtual missions from real runs (combines with table missions)
   // Use the runs already fetched above (take only first 50 for virtual missions)
   const runsForMissions = runs.slice(0, 50);
+  
+  console.log('[MISSIONS_DEBUG] runsForMissions count:', runsForMissions.length);
   
   // Also get sessions for additional context
   const sessions = await prisma.session.findMany({
@@ -2149,10 +2160,14 @@ server.get('/api/missions', async () => {
     take: 20
   });
   
+  console.log('[MISSIONS_DEBUG] sessions count:', sessions.length);
+  
   // Create missions from runs
   const runMissions = runsForMissions.map((run, index) => {
     const progress = calculateProgress(run);
     const priority = getPriority(run);
+    
+    console.log(`[MISSIONS_DEBUG] Processing run ${index + 1}/${runsForMissions.length}: id=${run.id}, status=${run.status}, progress=${progress}, priority=${priority}`);
     
     // Map run status to mission status
     let missionStatus = 'pending';
@@ -2208,8 +2223,15 @@ server.get('/api/missions', async () => {
       updatedAt: session.lastSeenAt.getTime()
     }));
   
+  console.log('[MISSIONS_DEBUG] sessionMissions count:', sessionMissions.length);
+  console.log('[MISSIONS_DEBUG] runMissions count:', runMissions.length);
+  
   // Combine and return: table missions + virtual missions from runs/sessions
-  return [...tableMissions, ...runMissions, ...sessionMissions];
+  const result = [...tableMissions, ...runMissions, ...sessionMissions];
+  console.log('[MISSIONS_DEBUG] FINAL result count:', result.length);
+  console.log('[MISSIONS_DEBUG] Breakdown - tableMissions:', tableMissions.length, 'runMissions:', runMissions.length, 'sessionMissions:', sessionMissions.length);
+  
+  return result;
 });
 
 // Get mission by ID
