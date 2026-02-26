@@ -577,8 +577,12 @@ interface InboxMessageRow {
 // GET /api/inbox - Messages in inbox (threads with messages)
 server.get('/api/inbox', async () => {
   try {
+    console.log('[INBOX_DEBUG] Starting /api/inbox request');
+    
     // Get existing threads from InboxThread table
     let threads = await prisma.$queryRaw<InboxThreadRow[]>`SELECT * FROM "InboxThread" ORDER BY "updatedAt" DESC LIMIT 50`;
+    
+    console.log('[INBOX_DEBUG] Found threads:', threads.length);
     
     // If no threads exist, create from sessions (for demo)
     if (threads.length === 0) {
