@@ -558,17 +558,29 @@ server.get('/api/inbox', async () => {
     });
 
     // Combine logs and sessions as inbox messages
-    const logMessages = logs.map((l, index) => ({
-      id: `msg_log_${l.id}`,
-      type: l.level === 'ERROR' ? 'error' : l.level === 'WARN' ? 'warning' : 'info',
-      title: l.source,
-      message: l.message,
-      sender: l.source,
-      timestamp: l.timestamp.getTime(),
-      read: index > 10, // First 10 are unread
-      priority: l.level === 'ERROR' ? 'high' : l.level === 'WARN' ? 'medium' : 'low',
-      metadata: l.extra
-    }));
+    // Filter out gateway request logs - only show meaningful messages
+    const logMessages = logs
+      .filter(l => {
+        // Skip gateway API request logs - these are too noisy
+        if (l.source === 'gateway' && l.message?.startsWith('GET /api/')) return false;
+        if (l.source === 'gateway' && l.message?.startsWith('POST /api/')) return false;
+        if (l.source === 'gateway' && l.message?.startsWith('PUT /api/')) return false;
+        if (l.source === 'gateway' && l.message?.startsWith('DELETE /api/')) return false;
+        // Skip health check pings
+        if (l.message?.includes('/api/health')) return false;
+        return true;
+      })
+      .map((l, index) => ({
+        id: `msg_log_${l.id}`,
+        type: l.level === 'ERROR' ? 'error' : l.level === 'WARN' ? 'warning' : 'info',
+        title: l.source,
+        message: l.message,
+        sender: l.source,
+        timestamp: l.timestamp.getTime(),
+        read: index > 10, // First 10 are unread
+        priority: l.level === 'ERROR' ? 'high' : l.level === 'WARN' ? 'medium' : 'low',
+        metadata: l.extra
+      }));
 
     const sessionMessages = sessions.map((s, index) => ({
       id: `msg_sess_${s.id}`,
