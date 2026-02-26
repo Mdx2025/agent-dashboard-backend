@@ -1,9 +1,9 @@
 # Railway.toml configuration for the backend API
-# Updated: 2026-02-26 - Force rebuild
+# Updated: 2026-02-26-06-25 - Force rebuild to fix duplicate routes
 
 [build]
 builder = "NIXPACKS"
-buildCommand = "npm install && npm run build"
+buildCommand = "rm -rf dist && npm install && npm run build"
 
 [deploy]
 # Build the project, generate Prisma client, and start the server
