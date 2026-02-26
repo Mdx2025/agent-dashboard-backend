@@ -6,8 +6,9 @@ builder = "NIXPACKS"
 buildCommand = "npm install && npm run build"
 
 [deploy]
-# Build the project, generate Prisma client, run migrations, and start the server
-startCommand = "npm run prisma:generate && npx prisma db push --skip-generate && npm start"
+# Build the project, generate Prisma client, and start the server
+# Note: prisma db push is skipped - using manual initialization via /api/admin/init
+startCommand = "npm run prisma:generate && npm start"
 healthcheckPath = "/api/health"
 healthcheckTimeout = 30000
 
