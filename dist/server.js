@@ -93,10 +93,10 @@ server.addHook('onRequest', async (request, reply) => {
 server.get('/api/health', async () => {
     try {
         await prisma.$queryRaw `SELECT 1`;
-        return { status: 'ok', timestamp: Date.now(), db: 'connected' };
+        return { status: 'ok_v2', timestamp: Date.now(), db: 'connected' };
     }
     catch (e) {
-        return { status: 'ok', timestamp: Date.now(), db: 'disconnected' };
+        return { status: 'ok_v2', timestamp: Date.now(), db: 'disconnected' };
     }
 });
 // Admin: Initialize database manually
