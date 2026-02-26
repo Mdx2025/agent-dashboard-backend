@@ -1,4 +1,4 @@
-import Fastify from 'fastify';
+import Fastify, { FastifyRequest } from 'fastify';
 import cors from '@fastify/cors';
 import { PrismaClient } from '@prisma/client';
 import fs from 'fs';
@@ -777,7 +777,7 @@ server.get('/api/connections', async () => {
 });
 
 // POST /api/connections/:id/toggle - Enable/disable connection
-server.post('/api/connections/:id/toggle', async (request, reply) => {
+server.post('/api/connections/:id/toggle', async (request: FastifyRequest<{ Params: { id: string } }>, reply) => {
   const { id } = request.params;
   
   const connection = await prisma.connection.findUnique({ where: { id } });
@@ -808,7 +808,7 @@ server.post('/api/connections/:id/toggle', async (request, reply) => {
 });
 
 // GET /api/connections/:id/status - Get connection status
-server.get('/api/connections/:id/status', async (request, reply) => {
+server.get('/api/connections/:id/status', async (request: FastifyRequest<{ Params: { id: string } }>, reply) => {
   const { id } = request.params;
   
   const connection = await prisma.connection.findUnique({ where: { id } });
@@ -891,7 +891,7 @@ server.post('/api/scheduler/jobs', async (request, reply) => {
 });
 
 // DELETE /api/scheduler/jobs/:id - Delete job
-server.delete('/api/scheduler/jobs/:id', async (request, reply) => {
+server.delete('/api/scheduler/jobs/:id', async (request: FastifyRequest<{ Params: { id: string } }>, reply) => {
   const { id } = request.params;
   
   const job = await prisma.scheduledJob.findUnique({ where: { id } });
