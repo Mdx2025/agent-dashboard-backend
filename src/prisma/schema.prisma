@@ -207,3 +207,74 @@ enum LogLevel {
   ERROR
   FATAL
 }
+
+// -------------------------------------------------
+// New models for Phase 3
+// -------------------------------------------------
+
+// Scheduler Jobs
+model ScheduledJob {
+  id          String   @id @default(cuid())
+  name        String
+  cronExpression String
+  endpoint    String
+  method      String   @default("GET")
+  enabled     Boolean  @default(true)
+  lastRun     DateTime?
+  nextRun     DateTime?
+  status      JobStatus @default(active)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+enum JobStatus {
+  active
+  paused
+  error
+  completed
+}
+
+// Connections/Integrations
+model Connection {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  type        String   // slack, notion, github, gmail, etc.
+  enabled     Boolean  @default(false)
+  status      ConnectionStatus @default(disconnected)
+  config      Json     @default("{}")
+  lastSync    DateTime?
+  metadata    Json     @default("{}")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+enum ConnectionStatus {
+  connected
+  disconnected
+  error
+  syncing
+}
+
+// BrainX Memory (local cache of vector DB)
+model Memory {
+  id          String   @id @default(cuid())
+  vectorId    String   @unique
+  content     String
+  metadata    Json     @default("{}")
+  agentId     String?
+  sessionId   String?
+  createdAt   DateTime @default(now())
+}
+
+// Mission Management
+model Mission {
+  id          String   @id
+  name        String
+  description String?
+  status      String   @default("pending")
+  priority    String   @default("medium")
+  owner       String   @default("Admin")
+  config      Json     @default("{}")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}

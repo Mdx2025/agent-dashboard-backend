@@ -1,4 +1,4 @@
-import Fastify from 'fastify';
+import Fastify, { FastifyRequest } from 'fastify';
 import cors from '@fastify/cors';
 import { PrismaClient } from '@prisma/client';
 import fs from 'fs';
@@ -112,6 +112,71 @@ server.get('/api/agents', async () => {
     costAll: a.costAll,
     latencyAvg: a.latencyAvg,
     uptime: a.uptime,
+  }));
+});
+
+// Get agent by ID
+server.get('/api/agents/:id', async (request: FastifyRequest<{ Params: { id: string } }>, reply) => {
+  const { id } = request.params;
+  
+  const agent = await prisma.agent.findUnique({ where: { id } });
+  
+  if (!agent) {
+    reply.code(404);
+    return { error: 'Agent not found' };
+  }
+  
+  return {
+    id: agent.id,
+    name: agent.name,
+    status: agent.status,
+    type: agent.type,
+    provider: agent.provider,
+    model: agent.model,
+    description: agent.description,
+    runs24h: agent.runs24h,
+    err24h: agent.err24h,
+    costDay: agent.costDay,
+    runsAll: agent.runsAll,
+    tokensIn24h: agent.tokensIn24h,
+    tokensOut24h: agent.tokensOut24h,
+    costAll: agent.costAll,
+    latencyAvg: agent.latencyAvg,
+    uptime: agent.uptime,
+  };
+});
+
+// Get logs for a specific agent
+server.get('/api/agents/:id/logs', async (request: FastifyRequest<{ Params: { id: string } }>, reply) => {
+  const { id } = request.params;
+  
+  // Verify agent exists
+  const agent = await prisma.agent.findUnique({ where: { id } });
+  if (!agent) {
+    reply.code(404);
+    return { error: 'Agent not found' };
+  }
+  
+  // Get logs where source contains agentId or extra metadata contains agentId
+  const logs = await prisma.logEntry.findMany({
+    where: {
+      OR: [
+        { source: { contains: id, mode: 'insensitive' } },
+        { extra: { path: ['agentId'], equals: id } },
+        { message: { contains: id, mode: 'insensitive' } }
+      ]
+    },
+    orderBy: { timestamp: 'desc' },
+    take: 100
+  });
+  
+  return logs.map(l => ({
+    id: l.id,
+    timestamp: l.timestamp.getTime(),
+    level: l.level,
+    source: l.source,
+    message: l.message,
+    extra: l.extra
   }));
 });
 
@@ -1006,6 +1071,19 @@ server.listen({ port: Number(PORT), host: '0.0.0.0' }, async (err, address) => {
     await prisma.$executeRaw`CREATE TABLE IF NOT EXISTS "Service" (id TEXT PRIMARY KEY, name TEXT UNIQUE NOT NULL, status TEXT NOT NULL DEFAULT 'healthy', host TEXT, port INTEGER, "latencyMs" INTEGER DEFAULT 0, "cpuPct" DOUBLE PRECISION DEFAULT 0, "memPct" DOUBLE PRECISION DEFAULT 0, version TEXT, metadata JSONB DEFAULT '{}', "createdAt" TIMESTAMP DEFAULT NOW(), "updatedAt" TIMESTAMP DEFAULT NOW())`;
     await prisma.$executeRaw`CREATE TABLE IF NOT EXISTS "LogEntry" (id TEXT PRIMARY KEY, timestamp TIMESTAMP DEFAULT NOW(), level TEXT NOT NULL, source TEXT NOT NULL, message TEXT NOT NULL, "runId" TEXT, "requestId" TEXT, extra JSONB)`;
     
+    // Create Mission table if not exists
+    await prisma.$executeRaw`CREATE TABLE IF NOT EXISTS "Mission" (
+      "id" TEXT PRIMARY KEY,
+      "name" TEXT NOT NULL,
+      "description" TEXT,
+      "status" TEXT NOT NULL DEFAULT 'pending',
+      "priority" TEXT NOT NULL DEFAULT 'medium',
+      "owner" TEXT NOT NULL DEFAULT 'Admin',
+      "config" JSONB DEFAULT '{}',
+      "createdAt" TIMESTAMP DEFAULT NOW(),
+      "updatedAt" TIMESTAMP DEFAULT NOW()
+    )`;
+    
     // Add missing columns if table already exists (ignore errors)
     try {
       await prisma.$executeRaw`ALTER TABLE "Agent" ADD COLUMN IF NOT EXISTS tools TEXT[]`;
@@ -1069,3 +1147,508 @@ setInterval(async () => {
 }, 300000);
 
 console.log('✅ Dashboard fixes loaded: Token Usage (Agent data), Auto-logging, Activity tracking');
+
+
+// =====================================================
+// PHASE 3: Advanced Endpoints
+// =====================================================
+
+// --- BrainX Endpoints ---
+
+// GET /api/brainx/memories - List all memories
+server.get('/api/brainx/memories', async (request) => {
+  const { limit = 50, offset = 0, agentId, sessionId } = request.query as any;
+  
+  const where: any = {};
+  if (agentId) where.agentId = agentId;
+  if (sessionId) where.sessionId = sessionId;
+
+  const memories = await prisma.memory.findMany({
+    where,
+    orderBy: { createdAt: 'desc' },
+    take: Math.min(Number(limit), 100),
+    skip: Number(offset)
+  });
+
+  return {
+    memories: memories.map(m => ({
+      id: m.id,
+      vectorId: m.vectorId,
+      content: m.content,
+      metadata: m.metadata,
+      agentId: m.agentId,
+      sessionId: m.sessionId,
+      createdAt: m.createdAt.getTime()
+    })),
+    total: await prisma.memory.count({ where })
+  };
+});
+
+// POST /api/brainx/search - Semantic search (simulated - real impl uses vector DB)
+server.post('/api/brainx/search', async (request) => {
+  const { query, limit = 10, agentId, sessionId } = request.body as any;
+  
+  if (!query) {
+    return { error: 'Query is required' };
+  }
+
+  // For now, do a basic text search
+  // In production, this would query the actual vector DB
+  const memories = await prisma.memory.findMany({
+    where: {
+      content: { contains: query, mode: 'insensitive' },
+      ...(agentId ? { agentId } : {}),
+      ...(sessionId ? { sessionId } : {})
+    },
+    orderBy: { createdAt: 'desc' },
+    take: Math.min(Number(limit), 50)
+  });
+
+  return {
+    query,
+    results: memories.map(m => ({
+      id: m.id,
+      vectorId: m.vectorId,
+      content: m.content,
+      metadata: m.metadata,
+      score: 1.0 // Placeholder for vector similarity score
+    })),
+    count: memories.length
+  };
+});
+
+// GET /api/brainx/stats - Memory statistics
+server.get('/api/brainx/stats', async () => {
+  const totalMemories = await prisma.memory.count();
+  
+  // Get memories by agent
+  const byAgent = await prisma.memory.groupBy({
+    by: ['agentId'],
+    _count: true
+  });
+
+  // Get recent activity (last 24h)
+  const dayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+  const recentCount = await prisma.memory.count({
+    where: { createdAt: { gte: dayAgo } }
+  });
+
+  return {
+    totalMemories,
+    recent24h: recentCount,
+    byAgent: byAgent.map(a => ({
+      agentId: a.agentId || 'unknown',
+      count: a._count
+    })),
+    timestamp: Date.now()
+  };
+});
+
+// --- Connections Endpoints ---
+
+// GET /api/connections - List all integrations
+server.get('/api/connections', async () => {
+  const connections = await prisma.connection.findMany({
+    orderBy: { name: 'asc' }
+  });
+
+  return connections.map(c => ({
+    id: c.id,
+    name: c.name,
+    type: c.type,
+    enabled: c.enabled,
+    status: c.status,
+    lastSync: c.lastSync?.getTime(),
+    metadata: c.metadata
+  }));
+});
+
+// POST /api/connections/:id/toggle - Enable/disable connection
+server.post('/api/connections/:id/toggle', async (request: FastifyRequest<{ Params: { id: string } }>, reply) => {
+  const { id } = request.params;
+  
+  const connection = await prisma.connection.findUnique({ where: { id } });
+  if (!connection) {
+    reply.code(404);
+    return { error: 'Connection not found' };
+  }
+
+  const newEnabled = !connection.enabled;
+  
+  const updated = await prisma.connection.update({
+    where: { id },
+    data: { 
+      enabled: newEnabled,
+      status: newEnabled ? 'connected' : 'disconnected'
+    }
+  });
+
+  // Emit WebSocket event
+  broadcastWS({ type: 'connection_toggled', connection: { id: updated.id, enabled: updated.enabled, status: updated.status } });
+
+  return {
+    id: updated.id,
+    name: updated.name,
+    enabled: updated.enabled,
+    status: updated.status
+  };
+});
+
+// GET /api/connections/:id/status - Get connection status
+server.get('/api/connections/:id/status', async (request: FastifyRequest<{ Params: { id: string } }>, reply) => {
+  const { id } = request.params;
+  
+  const connection = await prisma.connection.findUnique({ where: { id } });
+  if (!connection) {
+    reply.code(404);
+    return { error: 'Connection not found' };
+  }
+
+  return {
+    id: connection.id,
+    name: connection.name,
+    type: connection.type,
+    enabled: connection.enabled,
+    status: connection.status,
+    lastSync: connection.lastSync?.getTime(),
+    metadata: connection.metadata,
+    config: connection.config
+  };
+});
+
+// --- Scheduler Endpoints ---
+
+// GET /api/scheduler/jobs - List all cron jobs
+server.get('/api/scheduler/jobs', async () => {
+  const jobs = await prisma.scheduledJob.findMany({
+    orderBy: { createdAt: 'desc' }
+  });
+
+  return jobs.map(j => ({
+    id: j.id,
+    name: j.name,
+    cronExpression: j.cronExpression,
+    endpoint: j.endpoint,
+    method: j.method,
+    enabled: j.enabled,
+    lastRun: j.lastRun?.getTime(),
+    nextRun: j.nextRun?.getTime(),
+    status: j.status,
+    createdAt: j.createdAt.getTime()
+  }));
+});
+
+// POST /api/scheduler/jobs - Create new job
+server.post('/api/scheduler/jobs', async (request, reply) => {
+  const { name, cronExpression, endpoint, method = 'GET', enabled = true } = request.body as any;
+  
+  if (!name || !cronExpression || !endpoint) {
+    reply.code(400);
+    return { error: 'name, cronExpression, and endpoint are required' };
+  }
+
+  // Calculate next run time
+  const nextRun = calculateNextRun(cronExpression);
+
+  const job = await prisma.scheduledJob.create({
+    data: {
+      name,
+      cronExpression,
+      endpoint,
+      method,
+      enabled,
+      nextRun,
+      status: 'active'
+    }
+  });
+
+  // Emit WebSocket event
+  broadcastWS({ type: 'job_created', job: { id: job.id, name: job.name, cronExpression: job.cronExpression } });
+
+  return {
+    id: job.id,
+    name: job.name,
+    cronExpression: job.cronExpression,
+    endpoint: job.endpoint,
+    method: job.method,
+    enabled: job.enabled,
+    nextRun: job.nextRun?.getTime(),
+    status: job.status
+  };
+});
+
+// DELETE /api/scheduler/jobs/:id - Delete job
+server.delete('/api/scheduler/jobs/:id', async (request: FastifyRequest<{ Params: { id: string } }>, reply) => {
+  const { id } = request.params;
+  
+  const job = await prisma.scheduledJob.findUnique({ where: { id } });
+  if (!job) {
+    reply.code(404);
+    return { error: 'Job not found' };
+  }
+
+  await prisma.scheduledJob.delete({ where: { id } });
+
+  // Emit WebSocket event
+  broadcastWS({ type: 'job_deleted', jobId: id });
+
+  return { success: true, id };
+});
+
+// Helper: Calculate next run time from cron expression
+function calculateNextRun(cronExpression: string): Date {
+  // Simple implementation - in production use a proper cron parser
+  // For now, default to 1 hour from now for simple patterns
+  const now = new Date();
+  
+  // Handle common patterns
+  if (cronExpression.includes('* * * * *')) { // every minute
+    return new Date(now.getTime() + 60000);
+  } else if (cronExpression.includes('*/5 * * * *')) { // every 5 minutes
+    return new Date(now.getTime() + 300000);
+  } else if (cronExpression.includes('*/15 * * * *')) { // every 15 minutes
+    return new Date(now.getTime() + 900000);
+  } else if (cronExpression.includes('0 * * * *')) { // every hour
+    return new Date(now.getTime() + 3600000);
+  } else if (cronExpression.includes('0 0 * * *')) { // daily at midnight
+    const tomorrow = new Date(now);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    tomorrow.setHours(0, 0, 0, 0);
+    return tomorrow;
+  }
+  
+  // Default: 1 hour
+  return new Date(now.getTime() + 3600000);
+}
+
+
+// =====================================================
+// MDX Control - Dashboard Overview Endpoint
+// =====================================================
+server.get('/api/dashboard/overview', async () => {
+  // Get all agents for calculations
+  const agents = await prisma.agent.findMany();
+  
+  // Calculate tokens (sum of tokensIn24h + tokensOut24h)
+  const totalTokens = agents.reduce((sum, a) => sum + (a.tokensIn24h || 0) + (a.tokensOut24h || 0), 0);
+  
+  // Format tokens: if > 1000, show as "X.Xk"
+  const formatTokens = (tokens: number): string => {
+    if (tokens >= 1000) {
+      return (tokens / 1000).toFixed(1) + 'k';
+    }
+    return tokens.toString();
+  };
+  
+  // Calculate costToday (sum of costDay)
+  const totalCost = agents.reduce((sum, a) => sum + (a.costDay || 0), 0);
+  
+  // Format cost: show as "$X.XX"
+  const formatCost = (cost: number): string => {
+    return '$' + cost.toFixed(2);
+  };
+  
+  // Calculate uptime: average of all agents' uptime
+  const avgUptime = agents.length > 0 
+    ? agents.reduce((sum, a) => sum + (a.uptime || 100), 0) / agents.length 
+    : 100;
+  
+  // Format uptime: show as "XX.XX%"
+  const formatUptime = (uptime: number): string => {
+    return uptime.toFixed(2) + '%';
+  };
+  
+  // Count active agents (status === 'active')
+  const activeAgents = agents.filter(a => a.status === 'active').length;
+  
+  const stats = {
+    tokens: formatTokens(totalTokens),
+    costToday: formatCost(totalCost),
+    uptime: formatUptime(avgUptime),
+    models: `${activeAgents} online`
+  };
+  
+  return { stats };
+});
+
+// =====================================================
+// MDX Control - Missions Endpoints
+// =====================================================
+
+// Get all missions
+server.get('/api/missions', async () => {
+  const missions = await prisma.mission.findMany({
+    orderBy: { createdAt: 'desc' }
+  });
+  
+  return missions.map(m => ({
+    id: m.id,
+    name: m.name,
+    description: m.description,
+    status: m.status,
+    priority: m.priority,
+    owner: m.owner,
+    config: m.config,
+    createdAt: m.createdAt.getTime(),
+    updatedAt: m.updatedAt.getTime()
+  }));
+});
+
+// Get mission by ID
+server.get('/api/missions/:id', async (request: FastifyRequest<{ Params: { id: string } }>, reply) => {
+  const { id } = request.params;
+  
+  const mission = await prisma.mission.findUnique({ where: { id } });
+  
+  if (!mission) {
+    reply.code(404);
+    return { error: 'Mission not found' };
+  }
+  
+  return {
+    id: mission.id,
+    name: mission.name,
+    description: mission.description,
+    status: mission.status,
+    priority: mission.priority,
+    owner: mission.owner,
+    config: mission.config,
+    createdAt: mission.createdAt.getTime(),
+    updatedAt: mission.updatedAt.getTime()
+  };
+});
+
+// Create new mission
+server.post('/api/missions', async (request, reply) => {
+  const body = request.body as any;
+  
+  const newMission = await prisma.mission.create({
+    data: {
+      id: 'mission_' + Date.now(),
+      name: body?.name || 'New Mission',
+      description: body?.description || '',
+      status: body?.status || 'pending',
+      priority: body?.priority || 'medium',
+      owner: body?.owner || 'Admin',
+      config: body?.config || {}
+    }
+  });
+  
+  return reply.code(201).send({
+    id: newMission.id,
+    name: newMission.name,
+    description: newMission.description,
+    status: newMission.status,
+    priority: newMission.priority,
+    owner: newMission.owner,
+    config: newMission.config,
+    createdAt: newMission.createdAt.getTime(),
+    updatedAt: newMission.updatedAt.getTime()
+  });
+});
+
+// Update mission
+server.patch('/api/missions/:id', async (request: FastifyRequest<{ Params: { id: string } }>, reply) => {
+  const { id } = request.params;
+  const body = request.body as any;
+  
+  // Verify mission exists
+  const existingMission = await prisma.mission.findUnique({ where: { id } });
+  if (!existingMission) {
+    reply.code(404);
+    return { error: 'Mission not found' };
+  }
+  
+  const updatedMission = await prisma.mission.update({
+    where: { id },
+    data: {
+      ...(body?.name !== undefined && { name: body.name }),
+      ...(body?.description !== undefined && { description: body.description }),
+      ...(body?.status !== undefined && { status: body.status }),
+      ...(body?.priority !== undefined && { priority: body.priority }),
+      ...(body?.owner !== undefined && { owner: body.owner }),
+      ...(body?.config !== undefined && { config: body.config }),
+      updatedAt: new Date()
+    }
+  });
+  
+  return {
+    id: updatedMission.id,
+    name: updatedMission.name,
+    description: updatedMission.description,
+    status: updatedMission.status,
+    priority: updatedMission.priority,
+    owner: updatedMission.owner,
+    config: updatedMission.config,
+    createdAt: updatedMission.createdAt.getTime(),
+    updatedAt: updatedMission.updatedAt.getTime()
+  };
+});
+
+// =====================================================
+// MDX Control - Activity Feed Endpoint
+// =====================================================
+server.get('/api/activity', async () => {
+  // Map runs to activity feed format
+  const runs = await prisma.run.findMany({
+    orderBy: { startedAt: 'desc' },
+    take: 50
+  });
+  
+  return runs.map(r => ({
+    id: r.id,
+    type: 'run',
+    message: `${r.source} - ${r.label || 'Run'} (${r.status})`,
+    status: r.status,
+    model: r.model,
+    tokensIn: r.tokensIn,
+    tokensOut: r.tokensOut,
+    timestamp: r.startedAt.getTime(),
+    duration: r.duration
+  }));
+});
+
+// =====================================================
+// WebSocket Support for Real-time Events
+// =====================================================
+
+// Simple WebSocket broadcast function (works with compatible clients)
+const wsClients = new Set<any>();
+
+// Endpoint to register as WebSocket client (SSE alternative)
+server.get('/api/events', async (request, reply) => {
+  reply.raw.writeHead(200, {
+    'Content-Type': 'text/event-stream',
+    'Cache-Control': 'no-cache',
+    'Connection': 'keep-alive'
+  });
+
+  // Send initial connection event
+  reply.raw.write(`data: ${JSON.stringify({ type: 'connected' })}\n\n`);
+
+  // Keep connection alive with heartbeat
+  const interval = setInterval(() => {
+    try {
+      reply.raw.write(`: heartbeat\n\n`);
+    } catch {
+      clearInterval(interval);
+    }
+  }, 30000);
+
+  request.raw.on('close', () => {
+    clearInterval(interval);
+  });
+
+  return reply;
+});
+
+// Broadcast function for internal use
+function broadcastWS(event: any) {
+  // For now, log the event - in production would push to SSE clients
+  console.log('[WS Broadcast]', event.type, event);
+}
+
+// Activity Feed Events - emit on new activity
+async function emitActivityEvent(type: string, data: any) {
+  broadcastWS({ type, data, timestamp: Date.now() });
+}
