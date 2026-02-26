@@ -862,12 +862,66 @@ server.post('/api/inbox/:threadId/ping', async (request: FastifyRequest<{ Params
             ? personalizedResponse + "\n\n¿Necesitas ayuda específica?"
             : `¡Entendido! El agente ${agentName} está listo para ayudarte. ¿En qué puedo asistirte?`;
           break;
-        case 'status':
-          responseText = `📊 Estado del agente ${agentName}: 🟢 Online y funcionando`;
+        case 'status': {
+          // Get real runs for this agent from DB
+          const runs = await prisma.run.findMany({
+            where: { 
+              source: { equals: agentName.toUpperCase(), mode: 'insensitive' }
+            },
+            orderBy: { startedAt: 'desc' },
+            take: 10
+          });
+          
+          const activeRuns = runs.filter((r: any) => r.status === 'running');
+          const queuedRuns = runs.filter((r: any) => r.status === 'queued');
+          
+          if (activeRuns.length > 0) {
+            // Show active runs with details
+            const activeList = activeRuns.map((r: any) => {
+              const elapsed = Date.now() - new Date(r.startedAt).getTime();
+              const minutes = Math.floor(elapsed / 60000);
+              const seconds = Math.floor((elapsed % 60000) / 1000);
+              return `• ${r.label || 'Task'} - ${r.status} (${minutes}m ${seconds}s)`;
+            }).join('\n');
+            
+            responseText = `📊 Estado del agente ${agentName}:\n\n🟢 **Tareas activas (${activeRuns.length}):**\n${activeList}\n\n⏳ **Cola (${queuedRuns.length}):** ${queuedRuns.length} tareas`;
+          } else if (queuedRuns.length > 0) {
+            responseText = `📊 Estado del agente ${agentName}:\n\n⏳ **En cola:** ${queuedRuns.length} tareas\n✅ Sin tareas ejecutándose`;
+          } else {
+            responseText = `📊 Estado del agente ${agentName}:\n\n🟢 **Online** - Sin tareas activas\n💤 Esperando nuevas tareas`;
+          }
           break;
-        case 'stop':
-          responseText = `🛑 Solicitud de parada recibida. El agente ${agentName} está deteniendo sus tareas actuales.`;
+        }
+        case 'stop': {
+          // Find and stop active runs for this agent
+          const runs = await prisma.run.findMany({
+            where: { 
+              source: { equals: agentName.toUpperCase(), mode: 'insensitive' },
+              status: 'running'
+            },
+            orderBy: { startedAt: 'desc' },
+            take: 10
+          });
+          
+          if (runs.length > 0) {
+            // Mark runs as failed with stop reason
+            let stoppedCount = 0;
+            for (const run of runs) {
+              await prisma.run.update({
+                where: { id: run.id },
+                data: { 
+                  status: 'failed',
+                  finishReason: 'stop'
+                }
+              });
+              stoppedCount++;
+            }
+            responseText = `🛑 **Solicitud de parada procesada**\n\n⏹️ Se han detenido ${stoppedCount} tarea(s) activa(s) del agente ${agentName}.\n\nLas tareas han sido marcadas como detenidas.`;
+          } else {
+            responseText = `🛑 **Solicitud de parada**\n\nEl agente ${agentName} no tiene tareas activas en ejecución.\n✅ Sistema limpio`;
+          }
           break;
+        }
         default:
           responseText = personalizedResponse || `📬 Mensaje recibido por ${agentName}. ¿Cómo puedo ayudarte?`;
       }
