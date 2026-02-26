@@ -556,31 +556,101 @@ server.get('/api/artifacts', async () => {
   }
 });
 
-// GET /api/inbox - Messages in inbox
+// Type definitions for inbox queries
+interface InboxThreadRow {
+  id: string;
+  name: string;
+  agent: string;
+  status: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+interface InboxMessageRow {
+  id: string;
+  from: string;
+  text: string;
+  type: string;
+  createdAt: Date;
+}
+
+// GET /api/inbox - Messages in inbox (threads with messages)
 server.get('/api/inbox', async () => {
   try {
-    // Get recent logs as inbox messages
+    // Get existing threads from InboxThread table
+    let threads = await prisma.$queryRaw<InboxThreadRow[]>`SELECT * FROM "InboxThread" ORDER BY "updatedAt" DESC LIMIT 50`;
+    
+    // If no threads exist, create from sessions (for demo)
+    if (threads.length === 0) {
+      const sessions = await prisma.session.findMany({
+        orderBy: { lastSeenAt: 'desc' },
+        take: 10
+      });
+      
+      // Create threads from active sessions
+      for (const session of sessions) {
+        const threadId = `session_${session.agentName.toLowerCase()}_${session.id.slice(-6)}`;
+        await prisma.$executeRaw`
+          INSERT INTO "InboxThread" (id, name, agent, status, "createdAt", "updatedAt")
+          VALUES ($1, $2, $3, $4, NOW(), NOW())
+          ON CONFLICT (id) DO NOTHING
+        `, [threadId, `Session: ${session.agentName}`, session.agentName.toLowerCase(), session.status];
+      }
+      
+      // Re-fetch threads
+      threads = await prisma.$queryRaw`SELECT * FROM "InboxThread" ORDER BY "updatedAt" DESC LIMIT 50`;
+    }
+    
+    // Get messages for each thread
+    const threadList = await Promise.all(threads.map(async (thread) => {
+      const messages = await prisma.$queryRaw<InboxMessageRow[]>`SELECT id, "from", text, type, "createdAt" FROM "InboxMessage" WHERE "threadId" = ${thread.id} ORDER BY "createdAt" ASC LIMIT 50`;
+      
+      // If no messages, add default welcome messages for demo
+      if (messages.length === 0 && thread.status === 'active') {
+        const now = new Date();
+        await prisma.$executeRaw`
+          INSERT INTO "InboxMessage" (id, "threadId", "from", text, type, "createdAt")
+          VALUES ($1, $2, $3, $4, $5, $6)
+        `, [`msg_${Date.now()}_init`, thread.id, 'agent', `Session status: ${thread.status}`, 'message', now];
+        
+        return {
+          id: thread.id,
+          name: thread.name,
+          agent: thread.agent,
+          status: thread.status,
+          messages: [{
+            from: 'agent',
+            text: `Session status: ${thread.status}`,
+            time: now.toISOString()
+          }]
+        };
+      }
+      
+      return {
+        id: thread.id,
+        name: thread.name,
+        agent: thread.agent,
+        status: thread.status,
+        messages: messages.map(m => ({
+          from: m.from,
+          text: m.text,
+          time: m.createdAt.toISOString()
+        }))
+      };
+    }));
+    
+    // Also get recent logs as fallback (for backward compatibility)
     const logs = await prisma.logEntry.findMany({
       orderBy: { timestamp: 'desc' },
-      take: 50
-    });
-
-    // Get recent sessions
-    const sessions = await prisma.session.findMany({
-      orderBy: { lastSeenAt: 'desc' },
       take: 20
     });
-
-    // Combine logs and sessions as inbox messages
-    // Filter out gateway request logs - only show meaningful messages
+    
     const logMessages = logs
       .filter(l => {
-        // Skip gateway API request logs - these are too noisy
         if (l.source === 'gateway' && l.message?.startsWith('GET /api/')) return false;
         if (l.source === 'gateway' && l.message?.startsWith('POST /api/')) return false;
         if (l.source === 'gateway' && l.message?.startsWith('PUT /api/')) return false;
         if (l.source === 'gateway' && l.message?.startsWith('DELETE /api/')) return false;
-        // Skip health check pings
         if (l.message?.includes('/api/health')) return false;
         return true;
       })
@@ -591,27 +661,133 @@ server.get('/api/inbox', async () => {
         message: l.message,
         sender: l.source,
         timestamp: l.timestamp.getTime(),
-        read: index > 10, // First 10 are unread
+        read: index > 10,
         priority: l.level === 'ERROR' ? 'high' : l.level === 'WARN' ? 'medium' : 'low',
         metadata: l.extra
       }));
-
-    const sessionMessages = sessions.map((s, index) => ({
-      id: `msg_sess_${s.id}`,
-      type: 'session',
-      title: `Session ${s.agentName || 'Unknown'}`,
-      message: `Session status: ${s.status}`,
-      sender: s.agentName || 'System',
-      timestamp: s.lastSeenAt?.getTime() || Date.now(),
-      read: index > 5,
-      priority: s.status === 'active' ? 'medium' : 'low',
-      metadata: { model: s.model, tokens24h: s.tokens24h }
-    }));
-
-    return [...logMessages, ...sessionMessages].sort((a, b) => b.timestamp - a.timestamp);
+    
+    return {
+      threads: threadList,
+      messages: logMessages
+    };
   } catch (error) {
     console.error('Error fetching inbox:', error);
-    return [];
+    return { threads: [], messages: [] };
+  }
+});
+
+// GET /api/inbox/:threadId - Get specific thread with all messages
+server.get('/api/inbox/:threadId', async (request: FastifyRequest<{ Params: { threadId: string } }>, reply) => {
+  const { threadId } = request.params;
+  
+  try {
+    // Get the thread
+    const threads = await prisma.$queryRaw<InboxThreadRow[]>`SELECT * FROM "InboxThread" WHERE id = ${threadId}`;
+    
+    if (threads.length === 0) {
+      reply.code(404);
+      return { error: 'Thread not found' };
+    }
+    
+    const thread = threads[0];
+    
+    // Get messages for this thread
+    const messages = await prisma.$queryRaw<InboxMessageRow[]>`SELECT id, "from", text, type, "createdAt" FROM "InboxMessage" WHERE "threadId" = ${threadId} ORDER BY "createdAt" ASC`;
+    
+    return {
+      id: thread.id,
+      name: thread.name,
+      agent: thread.agent,
+      status: thread.status,
+      messages: messages.map(m => ({
+        from: m.from,
+        text: m.text,
+        time: m.createdAt.toISOString()
+      }))
+    };
+  } catch (error) {
+    console.error('Error fetching thread:', error);
+    reply.code(500);
+    return { error: 'Failed to fetch thread' };
+  }
+});
+
+// POST /api/inbox/:threadId/ping - Send ping/message from operator to agent
+server.post('/api/inbox/:threadId/ping', async (request: FastifyRequest<{ Params: { threadId: string } }>, reply) => {
+  const { threadId } = request.params;
+  const { type = 'message', message } = request.body as { type: 'help' | 'status' | 'stop' | 'message', message: string };
+  
+  try {
+    // 1. Verify thread exists
+    const threads = await prisma.$queryRaw<InboxThreadRow[]>`SELECT * FROM "InboxThread" WHERE id = ${threadId}`;
+    
+    if (threads.length === 0) {
+      reply.code(404);
+      return { error: 'Thread not found' };
+    }
+    
+    const thread = threads[0];
+    const agentName = thread.agent;
+    
+    // 2. Save operator message to DB
+    const messageId = `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const now = new Date();
+    
+    await prisma.$executeRaw`
+      INSERT INTO "InboxMessage" (id, "threadId", "from", text, type, "createdAt")
+      VALUES ($1, $2, $3, $4, $5, $6)
+    `, [messageId, threadId, 'operator', message || `Ping type: ${type}`, 'message', now];
+    
+    // 3. Log that we received a message from operator
+    console.log(`[INBOX] Operator ping to thread ${threadId} (agent: ${agentName}): type=${type}, message=${message}`);
+    
+    // 4. Simulate agent response after 1-2 seconds (for demo)
+    // In production, this would actually send to the agent
+    const agentResponseDelay = 1000 + Math.random() * 1000;
+    
+    setTimeout(async () => {
+      let responseText = '';
+      
+      switch (type) {
+        case 'help':
+          responseText = `¡Entendido! El agente ${agentName} está listo para ayudarte. ¿En qué puedo asistirte?`;
+          break;
+        case 'status':
+          responseText = `📊 Estado del agente ${agentName}: ${thread.status === 'active' ? '🟢 Activo' : '⚪ Inactivo'}`;
+          break;
+        case 'stop':
+          responseText = `🛑 Solicitud de parada recibida. El agente ${agentName} está deteniendo sus tareas actuales.`;
+          break;
+        default:
+          responseText = `📬 Mensaje recibido por ${agentName}. ¿Cómo puedo ayudarte?`;
+      }
+      
+      const responseId = `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      const responseTime = new Date();
+      
+      // Save agent response
+      await prisma.$executeRaw`
+        INSERT INTO "InboxMessage" (id, "threadId", "from", text, type, "createdAt")
+        VALUES ($1, $2, $3, $4, $5, $6)
+      `, [responseId, threadId, 'agent', responseText, 'message', responseTime];
+      
+      console.log(`[INBOX] Agent ${agentName} responded to thread ${threadId}`);
+    }, agentResponseDelay);
+    
+    // 5. Return immediately with success
+    return {
+      success: true,
+      messageId,
+      threadId,
+      agent: agentName,
+      type,
+      message: message || `Ping type: ${type}`,
+      timestamp: now.toISOString()
+    };
+  } catch (error) {
+    console.error('Error processing ping:', error);
+    reply.code(500);
+    return { error: 'Failed to process ping' };
   }
 });
 
@@ -1245,6 +1421,28 @@ async function initializeDatabase(): Promise<{ success: boolean; message: string
       "createdAt" TIMESTAMP DEFAULT NOW(),
       "updatedAt" TIMESTAMP DEFAULT NOW()
     )`;
+    
+    // Create Inbox tables for operator-to-agent messaging
+    await prisma.$executeRaw`CREATE TABLE IF NOT EXISTS "InboxThread" (
+      "id" TEXT PRIMARY KEY,
+      "name" TEXT NOT NULL,
+      "agent" TEXT NOT NULL,
+      "status" TEXT NOT NULL DEFAULT 'active',
+      "createdAt" TIMESTAMP DEFAULT NOW(),
+      "updatedAt" TIMESTAMP DEFAULT NOW()
+    )`;
+    
+    await prisma.$executeRaw`CREATE TABLE IF NOT EXISTS "InboxMessage" (
+      "id" TEXT PRIMARY KEY,
+      "threadId" TEXT NOT NULL REFERENCES "InboxThread"("id") ON DELETE CASCADE,
+      "from" TEXT NOT NULL,
+      "text" TEXT NOT NULL,
+      "type" TEXT NOT NULL DEFAULT 'message',
+      "createdAt" TIMESTAMP DEFAULT NOW()
+    )`;
+    
+    // Create index for faster message lookups
+    await prisma.$executeRaw`CREATE INDEX IF NOT EXISTS "idx_inbox_messages_thread" ON "InboxMessage"("threadId")`;
     
     // Add missing columns if table already exists (ignore errors)
     try {
