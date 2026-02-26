@@ -1,0 +1,1 @@
+export function MissionsPage(state) { return `<section class=\"page missions\"><h2>Missions</h2><table class=\"table\"><thead><tr><th>Nombre</th><th>Estado</th><th>Owner</th></tr></thead><tbody>${state.missions.map(m=>`<tr><td>${m.name}</td><td><span class=\"badge ${m.status}\">${m.status}</span></td><td>${m.owner}</td></tr>`).join('')}</tbody></table></section>`; }

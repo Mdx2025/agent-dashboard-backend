@@ -1,0 +1,1 @@
+export const mockData = { user: { name: 'Marcelo' }, stats: { leads: 342, conversion: '18.2%', missions: 3 }, missions: [{ id: 1, name: 'Outbound Fintech LATAM', status: 'active', owner: 'Ana' }, { id: 2, name: 'Reactivar leads fríos', status: 'paused', owner: 'Nico' }, { id: 3, name: 'Follow-up 3-5-6', status: 'active', owner: 'Marcelo' }] };

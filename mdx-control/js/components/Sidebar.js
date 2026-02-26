@@ -1,0 +1,1 @@
+export function Sidebar(current = 'overview') { return `<aside class="sidebar"><div class="brand">MDX Control</div><nav><a href="#/overview" class="nav-link ${current==='overview'?'active':''}">Overview</a><a href="#/missions" class="nav-link ${current==='missions'?'active':''}">Missions</a></nav></aside>`; }

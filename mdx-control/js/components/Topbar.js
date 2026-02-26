@@ -1,0 +1,1 @@
+export function Topbar(user) { return `<header class=\"topbar\"><h1>Panel</h1><div class=\"user\">${user?.name || 'User'}</div></header>`; }

@@ -1,0 +1,1 @@
+export function OverviewPage(state) { const cards=[['Leads',state.stats.leads??128],['Conversión',state.stats.conversion??'12.4%'],['Missions',state.stats.missions??state.missions.length]]; return `<section class=\"page overview\">${cards.map(([k,v])=>`<article class=\"card\"><h3>${k}</h3><p>${v}</p></article>`).join('')}</section>`; }
