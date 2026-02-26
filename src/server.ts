@@ -666,51 +666,6 @@ server.get('/api/inbox', async () => {
   }
 });
 
-// GET /api/brainx/memories - BrainX memories
-server.get('/api/brainx/memories', async () => {
-  try {
-    // Get recent sessions as memory sources
-    const sessions = await prisma.session.findMany({
-      orderBy: { lastSeenAt: 'desc' },
-      take: 30
-    });
-
-    // Get recent runs
-    const runs = await prisma.run.findMany({
-      orderBy: { startedAt: 'desc' },
-      take: 30
-    });
-
-    // Generate memories from sessions and runs
-    const sessionMemories = sessions.map((s, index) => ({
-      id: `mem_sess_${s.id}`,
-      content: `Session ${s.agentName || 'Unknown'} was ${s.status} using model ${s.model}`,
-      type: 'session_memory',
-      agent: s.agentName || 'system',
-      sessionId: s.id,
-      timestamp: s.lastSeenAt?.getTime() || Date.now(),
-      relevance: Math.random() * 0.5 + 0.5,
-      tags: ['session', s.status, s.model?.split('/')[0] || 'unknown']
-    }));
-
-    const runMemories = runs.map((r, index) => ({
-      id: `mem_run_${r.id}`,
-      content: `Run ${r.label} from ${r.source} completed with status ${r.status}`,
-      type: 'run_memory',
-      agent: r.source,
-      runId: r.id,
-      timestamp: r.startedAt?.getTime() || Date.now(),
-      relevance: Math.random() * 0.5 + 0.5,
-      tags: ['run', r.status, r.source]
-    }));
-
-    return [...sessionMemories, ...runMemories].sort((a, b) => b.timestamp - a.timestamp);
-  } catch (error) {
-    console.error('Error fetching brainx memories:', error);
-    return [];
-  }
-});
-
 // Get activity (last 20 logs)
 server.get('/api/activity', async () => {
   try {
