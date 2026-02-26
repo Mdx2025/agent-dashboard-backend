@@ -587,14 +587,18 @@ server.get('/api/inbox', async () => {
         take: 10
       });
       
+      console.log('[INBOX] No threads found, creating from sessions. Session count:', sessions.length);
+      
       // Create threads from active sessions
       for (const session of sessions) {
-        const threadId = `session_${session.agentName.toLowerCase()}_${session.id.slice(-6)}`;
+        const agentName = session.agentName || 'unknown';
+        const threadId = `session_${agentName.toLowerCase()}_${session.id.slice(-6)}`;
+        console.log('[INBOX] Creating thread:', threadId, 'for agent:', agentName);
         await prisma.$executeRaw`
           INSERT INTO "InboxThread" (id, name, agent, status, "createdAt", "updatedAt")
           VALUES ($1, $2, $3, $4, NOW(), NOW())
           ON CONFLICT (id) DO NOTHING
-        `, [threadId, `Session: ${session.agentName}`, session.agentName.toLowerCase(), session.status];
+        `, [threadId, `Session: ${agentName}`, agentName.toLowerCase(), session.status];
       }
       
       // Re-fetch threads
