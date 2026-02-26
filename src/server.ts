@@ -1,6 +1,7 @@
 // Build: 2026-02-26-06-25 - Force rebuild to fix duplicate routes
 import Fastify, { FastifyRequest } from 'fastify';
 import cors from '@fastify/cors';
+import websocket from '@fastify/websocket';
 import { PrismaClient } from '@prisma/client';
 import fs from 'fs';
 import path from 'path';
@@ -26,6 +27,10 @@ function getBrainXPool() {
 }
 
 server.register(cors, { origin: true });
+server.register(websocket);
+
+// Store WebSocket connections
+const wsConnections = new Set<any>();
 
 
 // Auto-logging middleware
@@ -2949,9 +2954,68 @@ server.get('/api/events', async (request, reply) => {
   return reply;
 });
 
+// WebSocket endpoint for real-time updates
+server.register(async function (fastify) {
+  fastify.get('/ws', { websocket: true }, (connection, req) => {
+    console.log('[WebSocket] Client connected');
+    wsConnections.add(connection);
+    
+    // Send initial connection confirmation
+    connection.socket.send(JSON.stringify({
+      type: 'connected',
+      timestamp: Date.now(),
+      message: 'WebSocket connection established'
+    }));
+    
+    // Handle incoming messages
+    connection.socket.on('message', (message) => {
+      try {
+        const data = JSON.parse(message.toString());
+        console.log('[WebSocket] Received:', data);
+        
+        // Echo back for ping/pong
+        if (data.type === 'ping') {
+          connection.socket.send(JSON.stringify({ type: 'pong', timestamp: Date.now() }));
+        }
+      } catch (e) {
+        console.log('[WebSocket] Raw message:', message.toString());
+      }
+    });
+    
+    // Handle disconnection
+    connection.socket.on('close', () => {
+      console.log('[WebSocket] Client disconnected');
+      wsConnections.delete(connection);
+    });
+    
+    // Send heartbeat every 30 seconds
+    const heartbeat = setInterval(() => {
+      try {
+        if (connection.socket.readyState === 1) { // OPEN
+          connection.socket.send(JSON.stringify({ type: 'heartbeat', timestamp: Date.now() }));
+        } else {
+          clearInterval(heartbeat);
+        }
+      } catch (e) {
+        clearInterval(heartbeat);
+        wsConnections.delete(connection);
+      }
+    }, 30000);
+  });
+});
+
 // Broadcast function for internal use
 function broadcastWS(event: any) {
-  // For now, log the event - in production would push to SSE clients
+  const message = JSON.stringify(event);
+  wsConnections.forEach((conn: any) => {
+    try {
+      if (conn.socket.readyState === 1) { // OPEN
+        conn.socket.send(message);
+      }
+    } catch (e) {
+      wsConnections.delete(conn);
+    }
+  });
   console.log('[WS Broadcast]', event.type, event);
 }
 

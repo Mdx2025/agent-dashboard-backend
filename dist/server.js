@@ -6,6 +6,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 // Build: 2026-02-26-06-25 - Force rebuild to fix duplicate routes
 const fastify_1 = __importDefault(require("fastify"));
 const cors_1 = __importDefault(require("@fastify/cors"));
+const websocket_1 = __importDefault(require("@fastify/websocket"));
 const client_1 = require("@prisma/client");
 const fs_1 = __importDefault(require("fs"));
 const path_1 = __importDefault(require("path"));
@@ -26,6 +27,9 @@ function getBrainXPool() {
     return brainxPool;
 }
 server.register(cors_1.default, { origin: true });
+server.register(websocket_1.default);
+// Store WebSocket connections
+const wsConnections = new Set();
 // Auto-logging middleware
 server.addHook('onRequest', async (request, reply) => {
     if (request.url === '/api/health' || request.url === '/api/sync')
@@ -2281,9 +2285,13 @@ function getPriority(run) {
     return 'low';
 }
 // Get all missions - creates missions from real runs if table is empty
-server.get('/api/missions', async () => {
+// SUPPORTS PAGINATION: /api/missions?status=backlog&offset=0&limit=20
+server.get('/api/missions', async (request) => {
+    const { status, offset = 0, limit = 20 } = request.query;
+    const parsedOffset = parseInt(offset) || 0;
+    const parsedLimit = Math.min(parseInt(limit) || 20, 100); // Cap at 100
     // DEBUG: Log mission generation
-    console.log('[MISSIONS_DEBUG] Starting /api/missions endpoint');
+    console.log('[MISSIONS_DEBUG] Starting /api/missions endpoint', { status, offset: parsedOffset, limit: parsedLimit });
     // Get existing missions from the Mission table
     const existingMissions = await prisma.mission.findMany({
         orderBy: { createdAt: 'desc' }
@@ -2292,7 +2300,7 @@ server.get('/api/missions', async () => {
     // Get runs to calculate progress and create virtual missions
     const runs = await prisma.run.findMany({
         orderBy: { startedAt: 'desc' },
-        take: 100
+        take: parsedLimit + parsedOffset + 50 // Fetch extra for pagination
     });
     console.log('[MISSIONS_DEBUG] runs count:', runs.length);
     const runMap = new Map(runs.map(r => [r.id, r]));
@@ -2330,9 +2338,9 @@ server.get('/api/missions', async () => {
     });
     console.log('[MISSIONS_DEBUG] tableMissions count:', tableMissions.length);
     // ALWAYS create virtual missions from real runs (combines with table missions)
-    // Use the runs already fetched above (take only first 50 for virtual missions)
-    const runsForMissions = runs.slice(0, 50);
-    console.log('[MISSIONS_DEBUG] runsForMissions count:', runsForMissions.length);
+    // Use the runs already fetched above
+    const runsForMissions = runs.slice(parsedOffset, parsedOffset + parsedLimit);
+    console.log('[MISSIONS_DEBUG] runsForMissions count:', runsForMissions.length, 'slice:', parsedOffset, 'to', parsedOffset + parsedLimit);
     // Also get sessions for additional context
     const sessions = await prisma.session.findMany({
         orderBy: { lastSeenAt: 'desc' },
@@ -2343,7 +2351,6 @@ server.get('/api/missions', async () => {
     const runMissions = runsForMissions.map((run, index) => {
         const progress = calculateProgress(run);
         const priority = getPriority(run);
-        console.log(`[MISSIONS_DEBUG] Processing run ${index + 1}/${runsForMissions.length}: id=${run.id}, status=${run.status}, progress=${progress}, priority=${priority}`);
         // Map run status to mission status
         let missionStatus = 'pending';
         if (run.status === 'finished')
@@ -2407,13 +2414,34 @@ server.get('/api/missions', async () => {
             updatedAt: session.lastSeenAt.getTime()
         };
     });
-    console.log('[MISSIONS_DEBUG] sessionMissions count:', sessionMissions.length);
-    console.log('[MISSIONS_DEBUG] runMissions count:', runMissions.length);
     // Combine and return: table missions + virtual missions from runs/sessions
-    const result = [...tableMissions, ...runMissions, ...sessionMissions];
-    console.log('[MISSIONS_DEBUG] FINAL result count:', result.length);
-    console.log('[MISSIONS_DEBUG] Breakdown - tableMissions:', tableMissions.length, 'runMissions:', runMissions.length, 'sessionMissions:', sessionMissions.length);
-    return result;
+    // Filter by status if provided
+    let result = [...tableMissions, ...runMissions, ...sessionMissions];
+    if (status) {
+        // Map status aliases
+        const statusMap = {
+            'backlog': 'pending',
+            'running': 'active',
+            'review': 'review',
+            'done': 'completed',
+            'active': 'active',
+            'completed': 'completed',
+            'paused': 'paused'
+        };
+        const mappedStatus = statusMap[status] || status;
+        result = result.filter(m => m.status === mappedStatus);
+    }
+    // Apply pagination
+    const paginatedResult = result.slice(0, parsedLimit);
+    const hasMore = result.length > parsedLimit;
+    console.log('[MISSIONS_DEBUG] FINAL result count:', paginatedResult.length, 'hasMore:', hasMore);
+    return {
+        missions: paginatedResult,
+        hasMore,
+        total: result.length,
+        offset: parsedOffset,
+        limit: parsedLimit
+    };
 });
 // Get mission by ID
 server.get('/api/missions/:id', async (request, reply) => {
@@ -2497,12 +2525,16 @@ server.patch('/api/missions/:id', async (request, reply) => {
 });
 // =====================================================
 // MDX Control - Activity Feed Endpoint
+// SUPPORTS PAGINATION: /api/activity?offset=0&limit=50
 // =====================================================
-server.get('/api/activity', async () => {
+server.get('/api/activity', async (request) => {
+    const { offset = 0, limit = 50 } = request.query;
+    const parsedOffset = parseInt(offset) || 0;
+    const parsedLimit = Math.min(parseInt(limit) || 50, 100); // Cap at 100
     // Get real runs with detailed info
     const runs = await prisma.run.findMany({
         orderBy: { startedAt: 'desc' },
-        take: 50
+        take: parsedLimit + parsedOffset + 20 // Fetch extra for pagination
     });
     // Get sessions for additional activity context
     const sessions = await prisma.session.findMany({
@@ -2579,9 +2611,17 @@ server.get('/api/activity', async () => {
     });
     // Combine and sort by timestamp
     const allActivities = [...runActivities, ...sessionActivities]
-        .sort((a, b) => b.timestamp - a.timestamp)
-        .slice(0, 50);
-    return allActivities;
+        .sort((a, b) => b.timestamp - a.timestamp);
+    // Apply pagination
+    const paginatedActivities = allActivities.slice(parsedOffset, parsedOffset + parsedLimit);
+    const hasMore = allActivities.length > parsedOffset + parsedLimit;
+    return {
+        activities: paginatedActivities,
+        hasMore,
+        total: allActivities.length,
+        offset: parsedOffset,
+        limit: parsedLimit
+    };
 });
 // =====================================================
 // WebSocket Support for Real-time Events
@@ -2611,9 +2651,66 @@ server.get('/api/events', async (request, reply) => {
     });
     return reply;
 });
+// WebSocket endpoint for real-time updates
+server.register(async function (fastify) {
+    fastify.get('/ws', { websocket: true }, (connection, req) => {
+        console.log('[WebSocket] Client connected');
+        wsConnections.add(connection);
+        // Send initial connection confirmation
+        connection.socket.send(JSON.stringify({
+            type: 'connected',
+            timestamp: Date.now(),
+            message: 'WebSocket connection established'
+        }));
+        // Handle incoming messages
+        connection.socket.on('message', (message) => {
+            try {
+                const data = JSON.parse(message.toString());
+                console.log('[WebSocket] Received:', data);
+                // Echo back for ping/pong
+                if (data.type === 'ping') {
+                    connection.socket.send(JSON.stringify({ type: 'pong', timestamp: Date.now() }));
+                }
+            }
+            catch (e) {
+                console.log('[WebSocket] Raw message:', message.toString());
+            }
+        });
+        // Handle disconnection
+        connection.socket.on('close', () => {
+            console.log('[WebSocket] Client disconnected');
+            wsConnections.delete(connection);
+        });
+        // Send heartbeat every 30 seconds
+        const heartbeat = setInterval(() => {
+            try {
+                if (connection.socket.readyState === 1) { // OPEN
+                    connection.socket.send(JSON.stringify({ type: 'heartbeat', timestamp: Date.now() }));
+                }
+                else {
+                    clearInterval(heartbeat);
+                }
+            }
+            catch (e) {
+                clearInterval(heartbeat);
+                wsConnections.delete(connection);
+            }
+        }, 30000);
+    });
+});
 // Broadcast function for internal use
 function broadcastWS(event) {
-    // For now, log the event - in production would push to SSE clients
+    const message = JSON.stringify(event);
+    wsConnections.forEach((conn) => {
+        try {
+            if (conn.socket.readyState === 1) { // OPEN
+                conn.socket.send(message);
+            }
+        }
+        catch (e) {
+            wsConnections.delete(conn);
+        }
+    });
     console.log('[WS Broadcast]', event.type, event);
 }
 // Activity Feed Events - emit on new activity
