@@ -8,6 +8,15 @@ import path from 'path';
 const server = Fastify({ logger: true });
 const prisma = new PrismaClient();
 
+// BrainX PostgreSQL connection
+import pkg from 'pg';
+const { Pool } = pkg;
+
+const brainxPool = new Pool({
+  connectionString: process.env.BRAINX_DATABASE_URL || 'postgresql://brainx:qlXjMcmpvjd4iS+eaf8TUDPBSTGfkEKoetlQTQW3eq0=@127.0.0.1:5432/brainx_v3',
+  ssl: false,
+});
+
 server.register(cors, { origin: true });
 
 
@@ -534,30 +543,8 @@ server.get('/api/dashboard/overview', async () => {
   }
 });
 
-// Get missions (runs mapped to missions format)
-server.get('/api/missions', async () => {
-  try {
-    const runs = await prisma.run.findMany({
-      orderBy: { startedAt: 'desc' },
-      take: 100
-    });
-
-    return runs.map(r => ({
-      id: r.id,
-      title: r.label || `Mission ${r.id.slice(0, 8)}`,
-      description: `Run from ${r.source} using ${r.model}`,
-      status: r.status,
-      agent: r.source,
-      priority: r.status === 'failed' ? 'high' : r.status === 'running' ? 'medium' : 'low',
-      progress: r.status === 'finished' ? 100 : r.status === 'running' ? 50 : 0,
-      dueDate: r.startedAt ? new Date(r.startedAt.getTime() + 24 * 60 * 60 * 1000).toISOString() : null,
-      steps: generateSteps(r.status)
-    }));
-  } catch (error) {
-    console.error('Error fetching missions:', error);
-    return [];
-  }
-});
+// Get missions (runs mapped to missions format) - REPLACED BY ENHANCED VERSION BELOW
+// See enhanced /api/missions endpoint after the scheduler section
 
 // GET /api/opportunities - Opportunities for the feed
 server.get('/api/opportunities', async () => {
@@ -1420,95 +1407,560 @@ console.log('✅ Dashboard fixes loaded: Token Usage (Agent data), Auto-logging,
 // PHASE 3: Advanced Endpoints
 // =====================================================
 
-// --- BrainX Endpoints ---
+// --- BrainX Endpoints (Real BrainX V4 Database) ---
 
-// GET /api/brainx/memories - List all memories
-server.get('/api/brainx/memories', async (request) => {
-  const { limit = 50, offset = 0, agentId, sessionId } = request.query as any;
-  
-  const where: any = {};
-  if (agentId) where.agentId = agentId;
-  if (sessionId) where.sessionId = sessionId;
-
-  const memories = await prisma.memory.findMany({
-    where,
-    orderBy: { createdAt: 'desc' },
-    take: Math.min(Number(limit), 100),
-    skip: Number(offset)
-  });
-
-  return {
-    memories: memories.map(m => ({
-      id: m.id,
-      vectorId: m.vectorId,
-      content: m.content,
-      metadata: m.metadata,
-      agentId: m.agentId,
-      sessionId: m.sessionId,
-      createdAt: m.createdAt.getTime()
-    })),
-    total: await prisma.memory.count({ where })
-  };
-});
-
-// POST /api/brainx/search - Semantic search (simulated - real impl uses vector DB)
-server.post('/api/brainx/search', async (request) => {
-  const { query, limit = 10, agentId, sessionId } = request.body as any;
-  
-  if (!query) {
-    return { error: 'Query is required' };
+// GET /api/brainx/health - Check BrainX database connection
+server.get('/api/brainx/health', async () => {
+  try {
+    const result = await brainxPool.query('SELECT 1 as test');
+    const memCount = await brainxPool.query('SELECT COUNT(*) as count FROM brainx_memories');
+    return {
+      status: 'connected',
+      database: 'brainx_v3',
+      memories: parseInt(memCount.rows[0].count),
+      timestamp: Date.now()
+    };
+  } catch (error: any) {
+    return {
+      status: 'disconnected',
+      database: 'brainx_v3',
+      error: error.message,
+      timestamp: Date.now()
+    };
   }
-
-  // For now, do a basic text search
-  // In production, this would query the actual vector DB
-  const memories = await prisma.memory.findMany({
-    where: {
-      content: { contains: query, mode: 'insensitive' },
-      ...(agentId ? { agentId } : {}),
-      ...(sessionId ? { sessionId } : {})
-    },
-    orderBy: { createdAt: 'desc' },
-    take: Math.min(Number(limit), 50)
-  });
-
-  return {
-    query,
-    results: memories.map(m => ({
-      id: m.id,
-      vectorId: m.vectorId,
-      content: m.content,
-      metadata: m.metadata,
-      score: 1.0 // Placeholder for vector similarity score
-    })),
-    count: memories.length
-  };
 });
 
-// GET /api/brainx/stats - Memory statistics
+// GET /api/brainx/stats - Memory statistics from real BrainX database
 server.get('/api/brainx/stats', async () => {
-  const totalMemories = await prisma.memory.count();
-  
-  // Get memories by agent
-  const byAgent = await prisma.memory.groupBy({
-    by: ['agentId'],
-    _count: true
-  });
+  try {
+    // Total memories
+    const totalResult = await brainxPool.query('SELECT COUNT(*) as total FROM brainx_memories');
+    const totalMemories = parseInt(totalResult.rows[0].total);
 
-  // Get recent activity (last 24h)
-  const dayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
-  const recentCount = await prisma.memory.count({
-    where: { createdAt: { gte: dayAgo } }
-  });
+    // Memories added today
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+    const todayResult = await brainxPool.query(
+      'SELECT COUNT(*) as count FROM brainx_memories WHERE created_at >= $1',
+      [todayStart]
+    );
+    const todayCount = parseInt(todayResult.rows[0].count);
 
-  return {
-    totalMemories,
-    recent24h: recentCount,
-    byAgent: byAgent.map(a => ({
-      agentId: a.agentId || 'unknown',
-      count: a._count
-    })),
-    timestamp: Date.now()
-  };
+    // By tier
+    const tierResult = await brainxPool.query(
+      'SELECT tier, COUNT(*) as count FROM brainx_memories GROUP BY tier'
+    );
+    const byTier = tierResult.rows.map(r => ({ tier: r.tier, count: parseInt(r.count) }));
+
+    // By agent
+    const agentResult = await brainxPool.query(
+      'SELECT agent, COUNT(*) as count FROM brainx_memories WHERE agent IS NOT NULL GROUP BY agent ORDER BY count DESC'
+    );
+    const byAgent = agentResult.rows.map(r => ({ agent: r.agent, count: parseInt(r.count) }));
+
+    // By context/workspace
+    const contextResult = await brainxPool.query(
+      'SELECT context, COUNT(*) as count FROM brainx_memories WHERE context IS NOT NULL GROUP BY context ORDER BY count DESC LIMIT 10'
+    );
+    const byContext = contextResult.rows.map(r => ({ context: r.context, count: parseInt(r.count) }));
+
+    // By type
+    const typeResult = await brainxPool.query(
+      'SELECT type, COUNT(*) as count FROM brainx_memories GROUP BY type'
+    );
+    const byType = typeResult.rows.map(r => ({ type: r.type, count: parseInt(r.count) }));
+
+    // By status
+    const statusResult = await brainxPool.query(
+      'SELECT status, COUNT(*) as count FROM brainx_memories GROUP BY status'
+    );
+    const byStatus = statusResult.rows.map(r => ({ status: r.status, count: parseInt(r.count) }));
+
+    // Calculate approximate database size (based on row count and avg size)
+    const avgSizeResult = await brainxPool.query(
+      'SELECT pg_total_relation_size(\'brainx_memories\') as size'
+    );
+    const dbSize = parseInt(avgSizeResult.rows[0].size) || 0;
+
+    // Active memories (hot + warm)
+    const activeResult = await brainxPool.query(
+      "SELECT COUNT(*) as count FROM brainx_memories WHERE tier IN ('hot', 'warm')"
+    );
+    const activeMemories = parseInt(activeResult.rows[0].count);
+
+    return {
+      totalMemories,
+      activeMemories,
+      todayCount,
+      dbSize,
+      byTier,
+      byAgent,
+      byContext,
+      byType,
+      byStatus,
+      timestamp: Date.now()
+    };
+  } catch (error: any) {
+    console.error('BrainX stats error:', error.message);
+    return {
+      error: error.message,
+      timestamp: Date.now()
+    };
+  }
+});
+
+// GET /api/brainx/memories - List all memories from real BrainX database
+server.get('/api/brainx/memories', async (request) => {
+  try {
+    const { limit = 50, offset = 0, type, tier, agent, context, status, search } = request.query as any;
+
+    let query = 'SELECT * FROM brainx_memories WHERE 1=1';
+    const params: any[] = [];
+    let paramIndex = 1;
+
+    if (type) {
+      query += ` AND type = $${paramIndex}`;
+      params.push(type);
+      paramIndex++;
+    }
+    if (tier) {
+      query += ` AND tier = $${paramIndex}`;
+      params.push(tier);
+      paramIndex++;
+    }
+    if (agent) {
+      query += ` AND agent = $${paramIndex}`;
+      params.push(agent);
+      paramIndex++;
+    }
+    if (context) {
+      query += ` AND context = $${paramIndex}`;
+      params.push(context);
+      paramIndex++;
+    }
+    if (status) {
+      query += ` AND status = $${paramIndex}`;
+      params.push(status);
+      paramIndex++;
+    }
+    if (search) {
+      query += ` AND (content ILIKE $${paramIndex} OR id ILIKE $${paramIndex})`;
+      params.push(`%${search}%`);
+      paramIndex++;
+    }
+
+    // Get total count
+    const countQuery = query.replace('SELECT *', 'SELECT COUNT(*) as total');
+    const countResult = await brainxPool.query(countQuery, params);
+    const total = parseInt(countResult.rows[0].total);
+
+    // Get paginated results
+    query += ' ORDER BY created_at DESC LIMIT $' + paramIndex + ' OFFSET $' + (paramIndex + 1);
+    params.push(Math.min(Number(limit), 100), Number(offset));
+
+    const result = await brainxPool.query(query, params);
+
+    return {
+      memories: result.rows.map(m => ({
+        id: m.id,
+        type: m.type,
+        content: m.content,
+        context: m.context,
+        tier: m.tier,
+        agent: m.agent,
+        importance: m.importance,
+        tags: m.tags || [],
+        status: m.status,
+        category: m.category,
+        createdAt: m.created_at ? new Date(m.created_at).getTime() : null,
+        lastAccessed: m.last_accessed ? new Date(m.last_accessed).getTime() : null,
+        accessCount: m.access_count
+      })),
+      total,
+      limit: Number(limit),
+      offset: Number(offset)
+    };
+  } catch (error: any) {
+    console.error('BrainX memories error:', error.message);
+    return { error: error.message, memories: [], total: 0 };
+  }
+});
+
+// POST /api/brainx/search - Semantic search using vector similarity
+server.post('/api/brainx/search', async (request) => {
+  try {
+    const { query, limit = 10, minSimilarity = 0.3, type, tier, context, agent } = request.body as any;
+
+    if (!query) {
+      return { error: 'Query is required' };
+    }
+
+    // First, get the embedding for the query using OpenAI
+    const openaiKey = process.env.OPENAI_API_KEY;
+    if (!openaiKey) {
+      // Fallback to basic text search if no API key
+      let sql = 'SELECT * FROM brainx_memories WHERE (content ILIKE $1 OR id ILIKE $1)';
+      const params: any[] = [`%${query}%`];
+      let paramIndex = 2;
+
+      if (type) {
+        sql += ` AND type = $${paramIndex}`;
+        params.push(type);
+        paramIndex++;
+      }
+      if (tier) {
+        sql += ` AND tier = $${paramIndex}`;
+        params.push(tier);
+        paramIndex++;
+      }
+      if (context) {
+        sql += ` AND context = $${paramIndex}`;
+        params.push(context);
+        paramIndex++;
+      }
+      if (agent) {
+        sql += ` AND agent = $${paramIndex}`;
+        params.push(agent);
+        paramIndex++;
+      }
+
+      sql += ` ORDER BY importance DESC, created_at DESC LIMIT $${paramIndex}`;
+      params.push(Number(limit));
+
+      const result = await brainxPool.query(sql, params);
+
+      return {
+        query,
+        results: result.rows.map(m => ({
+          id: m.id,
+          type: m.type,
+          content: m.content,
+          context: m.context,
+          tier: m.tier,
+          agent: m.agent,
+          importance: m.importance,
+          tags: m.tags || [],
+          score: 0.5, // Fake score for text search
+          createdAt: m.created_at ? new Date(m.created_at).getTime() : null
+        })),
+        count: result.rows.length,
+        type: 'text-search'
+      };
+    }
+
+    // Get embedding from OpenAI
+    const embedResponse = await fetch('https://api.openai.com/v1/embeddings', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${openaiKey}`
+      },
+      body: JSON.stringify({
+        model: 'text-embedding-3-small',
+        input: query
+      })
+    });
+
+    if (!embedResponse.ok) {
+      throw new Error(`OpenAI API error: ${embedResponse.status}`);
+    }
+
+    const embedData = await embedResponse.json();
+    const embedding = embedData.data[0].embedding;
+
+    // Search using vector similarity
+    let sql = `
+      SELECT id, type, content, context, tier, agent, importance, tags, created_at,
+             (embedding <=> $1::vector) as similarity
+      FROM brainx_memories
+      WHERE embedding IS NOT NULL
+        AND (embedding <=> $1::vector) < $2
+    `;
+    const params: any[] = = [JSON.stringify(embedding), 1 - minSimilarity];
+    let paramIndex = 3;
+
+    if (type) {
+      sql += ` AND type = $${paramIndex}`;
+      params.push(type);
+      paramIndex++;
+    }
+    if (tier) {
+      sql += ` AND tier = $${paramIndex}`;
+      params.push(tier);
+      paramIndex++;
+    }
+    if (context) {
+      sql += ` AND context = $${paramIndex}`;
+      params.push(context);
+      paramIndex++;
+    }
+    if (agent) {
+      sql += ` AND agent = $${paramIndex}`;
+      params.push(agent);
+      paramIndex++;
+    }
+
+    sql += ` ORDER BY similarity ASC LIMIT $${paramIndex}`;
+    params.push(Number(limit));
+
+    const result = await brainxPool.query(sql, params);
+
+    // Log the query
+    try {
+      await brainxPool.query(
+        'INSERT INTO brainx_query_log (id, query, results_count, similarity_threshold, created_at) VALUES ($1, $2, $3, $4, NOW())',
+        [`query_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`, query, result.rows.length, minSimilarity]
+      );
+    } catch (e) {}
+
+    return {
+      query,
+      results: result.rows.map(m => ({
+        id: m.id,
+        type: m.type,
+        content: m.content,
+        context: m.context,
+        tier: m.tier,
+        agent: m.agent,
+        importance: m.importance,
+        tags: m.tags || [],
+        score: 1 - parseFloat(m.similarity), // Convert distance to similarity
+        createdAt: m.created_at ? new Date(m.created_at).getTime() : null
+      })),
+      count: result.rows.length,
+      type: 'vector-search'
+    };
+  } catch (error: any) {
+    console.error('BrainX search error:', error.message);
+    return { error: error.message, results: [], count: 0 };
+  }
+});
+
+// GET /api/brainx/workspaces - List all workspaces/contexts
+server.get('/api/brainx/workspaces', async () => {
+  try {
+    const result = await brainxPool.query(`
+      SELECT context, 
+             COUNT(*) as memory_count,
+             MAX(created_at) as last_memory,
+             COUNT(DISTINCT agent) as agent_count
+      FROM brainx_memories 
+      WHERE context IS NOT NULL AND context != ''
+      GROUP BY context 
+      ORDER BY memory_count DESC
+    `);
+
+    return {
+      workspaces: result.rows.map(r => ({
+        name: r.context,
+        memoryCount: parseInt(r.memory_count),
+        lastMemory: r.last_memory ? new Date(r.last_memory).getTime() : null,
+        agentCount: parseInt(r.agent_count)
+      }))
+    };
+  } catch (error: any) {
+    console.error('BrainX workspaces error:', error.message);
+    return { error: error.message, workspaces: [] };
+  }
+});
+
+// GET /api/brainx/activity - Recent BrainX activity
+server.get('/api/brainx/activity', async () => {
+  try {
+    // Recent memories added
+    const memoriesResult = await brainxPool.query(`
+      SELECT id, type, content, agent, context, created_at
+      FROM brainx_memories 
+      ORDER BY created_at DESC 
+      LIMIT 10
+    `);
+
+    // Query log (recent searches)
+    let queryLogResult;
+    try {
+      queryLogResult = await brainxPool.query(`
+        SELECT query, results_count, created_at
+        FROM brainx_query_log 
+        ORDER BY created_at DESC 
+        LIMIT 10
+      `);
+    } catch (e) {
+      queryLogResult = { rows: [] };
+    }
+
+    // Activity summary
+    const summaryResult = await brainxPool.query(`
+      SELECT 
+        (SELECT COUNT(*) FROM brainx_memories WHERE created_at >= NOW() - INTERVAL '1 hour') as last_hour,
+        (SELECT COUNT(*) FROM brainx_memories WHERE created_at >= NOW() - INTERVAL '24 hours') as last_24h,
+        (SELECT COUNT(*) FROM brainx_memories WHERE created_at >= NOW() - INTERVAL '7 days') as last_7d
+    `);
+
+    return {
+      recentMemories: memoriesResult.rows.map(m => ({
+        id: m.id,
+        type: m.type,
+        content: m.content?.substring(0, 100) + (m.content?.length > 100 ? '...' : ''),
+        agent: m.agent,
+        context: m.context,
+        createdAt: m.created_at ? new Date(m.created_at).getTime() : null
+      })),
+      recentQueries: queryLogResult.rows.map(q => ({
+        query: q.query,
+        resultsCount: q.results_count,
+        createdAt: q.created_at ? new Date(q.created_at).getTime() : null
+      })),
+      summary: {
+        lastHour: parseInt(summaryResult.rows[0].last_hour),
+        last24h: parseInt(summaryResult.rows[0].last_24h),
+        last7d: parseInt(summaryResult.rows[0].last_7d)
+      },
+      timestamp: Date.now()
+    };
+  } catch (error: any) {
+    console.error('BrainX activity error:', error.message);
+    return { error: error.message, recentMemories: [], recentQueries: [], timestamp: Date.now() };
+  }
+});
+
+// GET /api/brainx/insights - Query insights and analytics
+server.get('/api/brainx/insights', async () => {
+  try {
+    // Most queried topics (from query log)
+    let topQueries = [];
+    try {
+      const queryResult = await brainxPool.query(`
+        SELECT query, COUNT(*) as count, AVG(results_count) as avg_results
+        FROM brainx_query_log 
+        WHERE created_at >= NOW() - INTERVAL '7 days'
+        GROUP BY query 
+        ORDER BY count DESC 
+        LIMIT 10
+      `);
+      topQueries = queryResult.rows.map(r => ({
+        query: r.query,
+        count: parseInt(r.count),
+        avgResults: parseFloat(r.avg_results)
+      }));
+    } catch (e) {
+      topQueries = [];
+    }
+
+    // Most active workspaces
+    const workspaceResult = await brainxPool.query(`
+      SELECT context, COUNT(*) as memory_count, MAX(created_at) as last_activity
+      FROM brainx_memories 
+      WHERE context IS NOT NULL 
+        AND created_at >= NOW() - INTERVAL '7 days'
+      GROUP BY context 
+      ORDER BY memory_count DESC 
+      LIMIT 5
+    `);
+
+    // Embeddings below threshold (low similarity scores)
+    const lowQualityResult = await brainxPool.query(`
+      SELECT COUNT(*) as count FROM brainx_memories 
+      WHERE embedding IS NULL OR importance < 3
+    `);
+
+    // Recently indexed workspaces
+    const recentIndexResult = await brainxPool.query(`
+      SELECT context, MAX(created_at) as indexed_at
+      FROM brainx_memories 
+      WHERE context IS NOT NULL 
+        AND created_at >= NOW() - INTERVAL '24 hours'
+      GROUP BY context
+      ORDER BY indexed_at DESC
+    `);
+
+    return {
+      topQueries,
+      topWorkspaces: workspaceResult.rows.map(r => ({
+        context: r.context,
+        memoryCount: parseInt(r.memory_count),
+        lastActivity: r.last_activity ? new Date(r.last_activity).getTime() : null
+      })),
+      lowQualityEmbeddings: parseInt(lowQualityResult.rows[0].count),
+      recentlyIndexed: recentIndexResult.rows.map(r => ({
+        context: r.context,
+        indexedAt: r.indexed_at ? new Date(r.indexed_at).getTime() : null
+      })),
+      timestamp: Date.now()
+    };
+  } catch (error: any) {
+    console.error('BrainX insights error:', error.message);
+    return { error: error.message, timestamp: Date.now() };
+  }
+});
+
+// POST /api/brainx/inject - Inject memories for a specific context
+server.post('/api/brainx/inject', async (request) => {
+  try {
+    const { query, limit = 5, context, tier = 'hot,warm' } = request.body as any;
+
+    if (!query) {
+      return { error: 'Query is required' };
+    }
+
+    // Get embedding
+    const openaiKey = process.env.OPENAI_API_KEY;
+    if (!openaiKey) {
+      return { error: 'OPENAI_API_KEY not configured' };
+    }
+
+    const embedResponse = await fetch('https://api.openai.com/v1/embeddings', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${openaiKey}`
+      },
+      body: JSON.stringify({
+        model: 'text-embedding-3-small',
+        input: query
+      })
+    });
+
+    const embedData = await embedResponse.json();
+    const embedding = embedData.data[0].embedding;
+
+    const tiers = tier.split(',');
+    let sql = `
+      SELECT id, type, content, context, tier, agent, importance, tags, created_at,
+             (embedding <=> $1::vector) as similarity
+      FROM brainx_memories
+      WHERE embedding IS NOT NULL
+        AND tier = ANY($2::text[])
+    `;
+    const params: any[] = [JSON.stringify(embedding), tiers];
+    let paramIndex = 3;
+
+    if (context) {
+      sql += ` AND context = $${paramIndex}`;
+      params.push(context);
+      paramIndex++;
+    }
+
+    sql += ` ORDER BY similarity ASC LIMIT $${paramIndex}`;
+    params.push(Number(limit));
+
+    const result = await brainxPool.query(sql, params);
+
+    // Format for injection
+    const injectedMemories = result.rows.map(m => {
+      const sim = 1 - parseFloat(m.similarity);
+      return `[sim:${sim.toFixed(2)} imp:${m.importance} tier:${m.tier} type:${m.type} agent:${m.agent || 'unknown'} ctx:${m.context || 'global'}]\n${m.content}`;
+    });
+
+    return {
+      query,
+      memories: injectedMemories,
+      count: injectedMemories.length,
+      formatted: injectedMemories.join('\n\n---\n\n')
+    };
+  } catch (error: any) {
+    console.error('BrainX inject error:', error.message);
+    return { error: error.message };
+  }
 });
 
 // --- Connections Endpoints ---
