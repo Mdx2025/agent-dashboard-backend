@@ -1,81 +1,84 @@
 import { Server } from 'socket.io';
 
-export function setupWebSocket(io) {
-  // Connection handling
+let io = null;
+
+/**
+ * Initialize Socket.IO with the HTTP server
+ * @param {import('http').Server} httpServer
+ * @returns {Server}
+ */
+export function initIO(httpServer) {
+  io = new Server(httpServer, {
+    cors: {
+      origin: '*',
+      methods: ['GET', 'POST']
+    },
+    transports: ['websocket', 'polling']
+  });
+
   io.on('connection', (socket) => {
-    console.log(`Client connected: ${socket.id}`);
+    console.log(`[WS] Client connected: ${socket.id}`);
 
-    // Join channels
-    socket.on('join', (channel) => {
-      socket.join(channel);
-      console.log(`Socket ${socket.id} joined channel: ${channel}`);
-    });
-
-    socket.on('leave', (channel) => {
-      socket.leave(channel);
-      console.log(`Socket ${socket.id} left channel: ${channel}`);
-    });
-
-    // Subscribe to agent updates
-    socket.on('subscribe:agent', (agentId) => {
+    // Client can subscribe to specific agent updates
+    socket.on('subscribe.agent', (agentId) => {
       socket.join(`agent:${agentId}`);
-      console.log(`Socket ${socket.id} subscribed to agent: ${agentId}`);
+      console.log(`[WS] ${socket.id} subscribed to agent:${agentId}`);
     });
 
-    // Subscribe to mission updates
-    socket.on('subscribe:mission', (missionId) => {
+    // Client can subscribe to mission updates
+    socket.on('subscribe.mission', (missionId) => {
       socket.join(`mission:${missionId}`);
-      console.log(`Socket ${socket.id} subscribed to mission: ${missionId}`);
+      console.log(`[WS] ${socket.id} subscribed to mission:${missionId}`);
     });
 
     socket.on('disconnect', (reason) => {
-      console.log(`Client disconnected: ${socket.id}, reason: ${reason}`);
-    });
-
-    // Handle errors
-    socket.on('error', (error) => {
-      console.error(`Socket error: ${socket.id}`, error);
+      console.log(`[WS] Client disconnected: ${socket.id} (${reason})`);
     });
   });
 
-  // Event emitters (these are used by routes)
-  io.emitAgentStatus = (agentId, status) => {
-    io.to(`agent:${agentId}`).emit('agent.status', {
-      agentId,
-      status,
-      timestamp: new Date().toISOString()
-    });
-    // Also emit to general agents channel
-    io.to('agents').emit('agent.status', {
-      agentId,
-      status,
-      timestamp: new Date().toISOString()
-    });
-  };
-
-  io.emitActivity = (activity) => {
-    io.emit('activity.new', activity);
-  };
-
-  io.emitMissionUpdate = (mission) => {
-    io.emit('mission.update', {
-      mission,
-      timestamp: new Date().toISOString()
-    });
-  };
-
-  io.emitNotification = (notification) => {
-    io.emit('notification', {
-      ...notification,
-      timestamp: new Date().toISOString()
-    });
-  };
-
+  console.log('[WS] Socket.IO initialized');
   return io;
 }
 
-// Socket events reference:
-// - agent.status: { agentId, status, timestamp }
-// - activity.new: Activity object
-// - mission.update: { mission, action, timestamp }
-// - notification: { id, type, message, timestamp }
+/**
+ * Get the Socket.IO instance
+ * @returns {Server|null}
+ */
+export function getIO() {
+  return io;
+}
+
+/**
+ * Emit agent status change
+ * @param {string} agentId
+ * @param {string} status
+ */
+export function emitAgentStatus(agentId, status) {
+  if (io) {
+    io.emit('agent.status', { agentId, status, timestamp: new Date().toISOString() });
+    io.to(`agent:${agentId}`).emit('agent.status.detail', { agentId, status, timestamp: new Date().toISOString() });
+  }
+}
+
+/**
+ * Emit new activity
+ * @param {object} activity
+ */
+export function emitActivity(activity) {
+  if (io) {
+    io.emit('activity.new', activity);
+  }
+}
+
+/**
+ * Emit mission update
+ * @param {object} mission
+ */
+export function emitMissionUpdate(mission) {
+  if (io) {
+    io.emit('mission.update', mission);
+    if (mission.id) {
+      io.to(`mission:${mission.id}`).emit('mission.update.detail', mission);
+    }
+  }
+}

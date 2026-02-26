@@ -1,86 +1,114 @@
-import express from 'express';
+import { Router } from 'express';
+import { Agent } from '../models/index.js';
+import { emitAgentStatus } from '../websocket/index.js';
 
-const router = express.Router();
+const router = Router();
 
-// Mock agent logs storage (in production, use database)
-const agentLogs = new Map();
-
-// GET /api/agents - Lista agentes con status
-router.get('/', (req, res) => {
-  const agents = [
-    { id: 'main', name: 'Jarvis', status: 'online', model: 'MiniMax-M2.5-highspeed', lastActive: new Date().toISOString(), capabilities: ['general', 'coordination'] },
-    { id: 'coder', name: 'Coder', status: 'online', model: 'kimi-coding/k2p5', lastActive: new Date().toISOString(), capabilities: ['coding', 'debugging'] },
-    { id: 'writer', name: 'Writer', status: 'idle', model: 'openai-codex/gpt-5.3-codex', lastActive: new Date(Date.now() - 3600000).toISOString(), capabilities: ['writing', 'content'] },
-    { id: 'researcher', name: 'Researcher', status: 'offline', model: 'google-gemini-cli/gemini-2.5-pro', lastActive: new Date(Date.now() - 7200000).toISOString(), capabilities: ['research', 'analysis'] },
-    { id: 'raider', name: 'Raider', status: 'online', model: 'anthropic/claude-opus-4-6', lastActive: new Date().toISOString(), capabilities: ['review', 'security'] },
-    { id: 'clawma', name: 'Clawma', status: 'idle', model: 'zai/glm-5', lastActive: new Date(Date.now() - 1800000).toISOString(), capabilities: ['support', 'customer-service'] },
-    { id: 'support', name: 'Support', status: 'offline', model: 'minimax-portal/MiniMax-M2.5', lastActive: new Date(Date.now() - 86400000).toISOString(), capabilities: ['support'] },
-    { id: 'reasoning', name: 'Reasoning', status: 'idle', model: 'openai/gpt-5.2', lastActive: new Date(Date.now() - 900000).toISOString(), capabilities: ['reasoning', 'analysis'] }
-  ];
-
-  res.json(agents);
+// GET /api/agents - List all agents
+router.get('/', async (req, res) => {
+  try {
+    const agents = await Agent.findAll({ order: [['name', 'ASC']] });
+    res.json(agents.map(a => ({
+      id: a.id,
+      name: a.name,
+      emoji: a.emoji,
+      type: a.type,
+      status: a.status,
+      model: a.model,
+      provider: a.provider,
+      description: a.description,
+      runs24h: a.runs24h,
+      err24h: a.err24h,
+      costDay: a.costDay,
+      tokensIn24h: a.tokensIn24h,
+      tokensOut24h: a.tokensOut24h,
+      costAll: a.costAll,
+      latencyAvg: a.latencyAvg,
+      uptime: a.uptime
+    })));
+  } catch (err) {
+    console.error('GET /api/agents error:', err);
+    res.status(500).json({ error: err.message });
+  }
 });
 
-// GET /api/agents/:id - Detalle agente
-router.get('/:id', (req, res) => {
-  const { id } = req.params;
-  
-  const agentsData = {
-    main: { id: 'main', name: 'Jarvis', status: 'online', model: 'MiniMax-M2.5-highspeed', lastActive: new Date().toISOString(), capabilities: ['general', 'coordination'], description: 'Main coordinator agent' },
-    coder: { id: 'coder', name: 'Coder', status: 'online', model: 'kimi-coding/k2p5', lastActive: new Date().toISOString(), capabilities: ['coding', 'debugging'], description: 'Coding and development agent' },
-    writer: { id: 'writer', name: 'Writer', status: 'idle', model: 'openai-codex/gpt-5.3-codex', lastActive: new Date(Date.now() - 3600000).toISOString(), capabilities: ['writing', 'content'], description: 'Content creation agent' },
-    researcher: { id: 'researcher', name: 'Researcher', status: 'offline', model: 'google-gemini-cli/gemini-2.5-pro', lastActive: new Date(Date.now() - 7200000).toISOString(), capabilities: ['research', 'analysis'], description: 'Research and analysis agent' },
-    raider: { id: 'raider', name: 'Raider', status: 'online', model: 'anthropic/claude-opus-4-6', lastActive: new Date().toISOString(), capabilities: ['review', 'security'], description: 'Code review and security agent' },
-    clawma: { id: 'clawma', name: 'Clawma', status: 'idle', model: 'zai/glm-5', lastActive: new Date(Date.now() - 1800000).toISOString(), capabilities: ['support', 'customer-service'], description: 'Customer support agent' },
-    support: { id: 'support', name: 'Support', status: 'offline', model: 'minimax-portal/MiniMax-M2.5', lastActive: new Date(Date.now() - 86400000).toISOString(), capabilities: ['support'], description: 'General support agent' },
-    reasoning: { id: 'reasoning', name: 'Reasoning', status: 'idle', model: 'openai/gpt-5.2', lastActive: new Date(Date.now() - 900000).toISOString(), capabilities: ['reasoning', 'analysis'], description: 'Advanced reasoning agent' }
-  };
-
-  const agent = agentsData[id];
-  if (!agent) {
-    return res.status(404).json({ error: 'Agent not found' });
+// GET /api/agents/:id - Get single agent
+router.get('/:id', async (req, res) => {
+  try {
+    const agent = await Agent.findByPk(req.params.id);
+    if (!agent) return res.status(404).json({ error: 'Agent not found' });
+    res.json(agent);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
-
-  res.json(agent);
 });
 
-// GET /api/agents/:id/logs - Logs del agente
-router.get('/:id/logs', (req, res) => {
-  const { id } = req.params;
-  const { limit = 100 } = req.query;
+// PATCH /api/agents/:id - Update agent (mainly status)
+router.patch('/:id', async (req, res) => {
+  try {
+    const agent = await Agent.findByPk(req.params.id);
+    if (!agent) return res.status(404).json({ error: 'Agent not found' });
 
-  // Generate mock logs
-  const logs = [];
-  const actions = ['task_started', 'task_completed', 'message_sent', 'file_created', 'api_called', 'error', 'warning'];
-  
-  for (let i = 0; i < Math.min(parseInt(limit), 100); i++) {
-    logs.push({
-      id: `log-${Date.now()}-${i}`,
-      timestamp: new Date(Date.now() - i * 60000).toISOString(),
-      level: actions[Math.floor(Math.random() * actions.length)],
-      message: `Sample log message ${i + 1} for agent ${id}`,
-      metadata: { agentId: id }
-    });
+    const allowed = ['status', 'model', 'provider', 'description', 'emoji',
+      'runs24h', 'runsAll', 'err24h', 'tokensIn24h', 'tokensOut24h',
+      'costDay', 'costAll', 'latencyAvg', 'uptime'];
+
+    const updates = {};
+    for (const key of allowed) {
+      if (req.body[key] !== undefined) updates[key] = req.body[key];
+    }
+
+    await agent.update(updates);
+
+    // Emit status change if status was updated
+    if (updates.status) {
+      emitAgentStatus(agent.id, updates.status);
+    }
+
+    res.json(agent);
+  } catch (err) {
+    console.error('PATCH /api/agents/:id error:', err);
+    res.status(500).json({ error: err.message });
   }
-
-  res.json(logs);
 });
 
-// POST /api/agents/:id/status - Actualizar status del agente
-router.post('/:id/status', (req, res) => {
-  const { id } = req.params;
-  const { status } = req.body;
+// POST /api/agents/sync - Bulk sync agents from OpenClaw
+router.post('/sync', async (req, res) => {
+  try {
+    const { agents } = req.body;
+    if (!agents || !Array.isArray(agents)) {
+      return res.status(400).json({ error: 'agents array is required' });
+    }
 
-  const validStatuses = ['online', 'idle', 'offline', 'busy'];
-  if (!validStatuses.includes(status)) {
-    return res.status(400).json({ error: 'Invalid status' });
+    const results = [];
+    for (const a of agents) {
+      const [agent, created] = await Agent.upsert({
+        id: a.id,
+        name: a.name,
+        type: a.type || 'SUBAGENT',
+        status: a.status || 'idle',
+        model: a.model || 'unknown',
+        provider: a.provider || 'unknown',
+        description: a.description || null,
+        emoji: a.emoji || '🤖',
+        runs24h: a.runs24h || 0,
+        runsAll: a.runsAll || 0,
+        err24h: a.err24h || 0,
+        tokensIn24h: a.tokensIn24h || 0,
+        tokensOut24h: a.tokensOut24h || 0,
+        costDay: a.costDay || 0,
+        costAll: a.costAll || 0,
+        latencyAvg: a.latencyAvg || 0,
+        uptime: a.uptime || 100
+      });
+      results.push({ id: a.id, status: 'ok' });
+    }
+
+    res.json({ synced: results.length, results });
+  } catch (err) {
+    console.error('POST /api/agents/sync error:', err);
+    res.status(500).json({ error: err.message });
   }
-
-  // Emit WebSocket event
-  const io = req.app.get('io');
-  io.emit('agent.status', { agentId: id, status, timestamp: new Date().toISOString() });
-
-  res.json({ success: true, agentId: id, status });
 });
 
 export default router;

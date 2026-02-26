@@ -1,75 +1,173 @@
-import express from 'express';
+import { Router } from 'express';
+import { Op } from 'sequelize';
+import sequelize from '../index.js';
+import { Agent, Mission, MissionStep, Activity } from '../models/index.js';
 
-const router = express.Router();
+const router = Router();
 
-// Mock agents data - in production, this would come from the database
-const agents = [
-  { id: 'main', name: 'Jarvis', status: 'online', model: 'MiniMax-M2.5-highspeed', lastActive: new Date() },
-  { id: 'coder', name: 'Coder', status: 'online', model: 'kimi-coding/k2p5', lastActive: new Date() },
-  { id: 'writer', name: 'Writer', status: 'idle', model: 'openai-codex/gpt-5.3-codex', lastActive: new Date(Date.now() - 3600000) },
-  { id: 'researcher', name: 'Researcher', status: 'offline', model: 'google-gemini-cli/gemini-2.5-pro', lastActive: new Date(Date.now() - 7200000) },
-  { id: 'raider', name: 'Raider', status: 'online', model: 'anthropic/claude-opus-4-6', lastActive: new Date() },
-  { id: 'clawma', name: 'Clawma', status: 'idle', model: 'zai/glm-5', lastActive: new Date(Date.now() - 1800000) }
-];
-
-// GET /api/dashboard/overview - Stats globales
+// GET /api/dashboard/overview - Full dashboard overview
 router.get('/overview', async (req, res) => {
   try {
-    const { Mission, Activity } = req.app.get('models');
-    
-    // Get mission stats
-    const missionStats = await Mission.findAll({
-      attributes: [
-        'status',
-        [Mission.sequelize.fn('COUNT', Mission.sequelize.col('id')), 'count']
+    // Stats
+    const [
+      agentsRunning,
+      activeMissions,
+      pendingApproval,
+      allAgents,
+      todayActivities
+    ] = await Promise.all([
+      Agent.count({ where: { status: 'active' } }),
+      Mission.count({ where: { status: 'in_progress' } }),
+      Mission.count({ where: { status: 'pending' } }),
+      Agent.findAll(),
+      Activity.count({
+        where: {
+          createdAt: { [Op.gte]: new Date(new Date().setHours(0, 0, 0, 0)) }
+        }
+      })
+    ]);
+
+    const costToday = allAgents.reduce((sum, a) => sum + (a.costDay || 0), 0);
+
+    // Active missions (limit 10)
+    const missions = await Mission.findAll({
+      where: { status: { [Op.in]: ['pending', 'in_progress'] } },
+      include: [
+        { model: MissionStep, as: 'steps' },
+        { model: Agent, as: 'agent', attributes: ['id', 'name', 'emoji'] }
       ],
-      group: ['status'],
-      raw: true
+      order: [
+        ['priority', 'DESC'],
+        ['createdAt', 'DESC']
+      ],
+      limit: 10
     });
 
-    const totalMissions = missionStats.reduce((acc, s) => acc + parseInt(s.count), 0);
-    const completedMissions = missionStats.find(s => s.status === 'completed')?.count || 0;
-    const inProgressMissions = missionStats.find(s => s.status === 'in_progress')?.count || 0;
-
-    // Get activity count (last 24 hours)
-    const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000);
-    const recentActivities = await Activity.count({
-      where: {
-        timestamp: { [Mission.sequelize.Op.gte]: yesterday }
-      }
+    // Recent activity (limit 20)
+    const recentActivity = await Activity.findAll({
+      order: [['createdAt', 'DESC']],
+      limit: 20
     });
 
-    // Agent stats
-    const onlineAgents = agents.filter(a => a.status === 'online').length;
-    const idleAgents = agents.filter(a => a.status === 'idle').length;
+    // System health - check key components
+    const systemHealth = [];
+
+    // DB check
+    try {
+      const start = Date.now();
+      await sequelize.query('SELECT 1');
+      systemHealth.push({
+        name: 'PostgreSQL',
+        status: 'healthy',
+        latencyMs: Date.now() - start,
+        detail: 'Connected'
+      });
+    } catch (e) {
+      systemHealth.push({
+        name: 'PostgreSQL',
+        status: 'unhealthy',
+        latencyMs: 0,
+        detail: e.message
+      });
+    }
+
+    // Agent health
+    const errorAgents = allAgents.filter(a => a.status === 'error');
+    systemHealth.push({
+      name: 'Agents',
+      status: errorAgents.length > 0 ? 'degraded' : 'healthy',
+      detail: `${agentsRunning} running, ${errorAgents.length} errors`,
+      activeCount: agentsRunning,
+      errorCount: errorAgents.length
+    });
+
+    // WebSocket check (simple - always healthy if server is up)
+    systemHealth.push({
+      name: 'WebSocket',
+      status: 'healthy',
+      detail: 'Socket.IO active'
+    });
+
+    // API check
+    systemHealth.push({
+      name: 'API Server',
+      status: 'healthy',
+      detail: `Uptime: ${Math.floor(process.uptime())}s`
+    });
 
     res.json({
-      missions: {
-        total: totalMissions,
-        completed: parseInt(completedMissions),
-        inProgress: parseInt(inProgressMissions),
-        pending: totalMissions - parseInt(completedMissions) - parseInt(inProgressMissions)
+      stats: {
+        agentsRunning,
+        activeMissions,
+        pendingApproval,
+        costToday: Math.round(costToday * 100) / 100,
+        activitiestoday: todayActivities
       },
-      agents: {
-        total: agents.length,
-        online: onlineAgents,
-        idle: idleAgents,
-        offline: agents.length - onlineAgents - idleAgents
-      },
-      activity: {
-        last24h: recentActivities
-      },
-      timestamp: new Date().toISOString()
+      missions: missions.map(m => ({
+        id: m.id,
+        title: m.title,
+        agentId: m.agentId,
+        agentName: m.agent?.name || null,
+        agentEmoji: m.agent?.emoji || '🤖',
+        status: m.status,
+        progress: m.progress,
+        priority: m.priority,
+        dueDate: m.dueDate,
+        stepsTotal: (m.steps || []).length,
+        stepsDone: (m.steps || []).filter(s => s.done).length,
+        currentStep: (m.steps || []).find(s => s.current)?.name || null
+      })),
+      recentActivity: recentActivity.map(a => ({
+        id: a.id,
+        agentId: a.agentId,
+        agentName: a.agentName,
+        emoji: a.emoji,
+        type: a.type,
+        action: a.action,
+        details: a.details,
+        timestamp: a.createdAt,
+        tokens: a.tokens
+      })),
+      systemHealth
     });
-  } catch (error) {
-    console.error('Dashboard overview error:', error);
-    // Return mock data if DB not available
-    res.json({
-      missions: { total: 0, completed: 0, inProgress: 0, pending: 0 },
-      agents: { total: 6, online: 3, idle: 2, offline: 1 },
-      activity: { last24h: 0 },
-      timestamp: new Date().toISOString()
+  } catch (err) {
+    console.error('GET /api/dashboard/overview error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/dashboard/agents - Agent summary for dashboard
+router.get('/agents', async (req, res) => {
+  try {
+    const agents = await Agent.findAll({
+      include: [
+        {
+          model: Mission,
+          as: 'missions',
+          where: { status: { [Op.in]: ['pending', 'in_progress'] } },
+          required: false
+        }
+      ],
+      order: [['name', 'ASC']]
     });
+
+    res.json(agents.map(a => ({
+      id: a.id,
+      name: a.name,
+      emoji: a.emoji,
+      status: a.status,
+      type: a.type,
+      model: a.model,
+      provider: a.provider,
+      costDay: a.costDay,
+      runs24h: a.runs24h,
+      err24h: a.err24h,
+      activeMissions: (a.missions || []).length,
+      uptime: a.uptime
+    })));
+  } catch (err) {
+    console.error('GET /api/dashboard/agents error:', err);
+    res.status(500).json({ error: err.message });
   }
 });
 
