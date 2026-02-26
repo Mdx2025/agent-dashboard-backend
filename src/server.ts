@@ -469,14 +469,28 @@ server.get('/api/dashboard/overview', async () => {
   // Count active agents (status === 'active')
   const activeAgents = agents.filter(a => a.status === 'active').length;
   
+  // Get runs to count active missions
+  const runs = await prisma.run.findMany();
+  const activeMissions = runs.filter(r => r.status === 'running').length;
+  
+  // Count pending approvals (could be from opportunities or specific runs)
+  const pendingApprovals = runs.filter(r => r.status === 'queued').length;
+  
   const stats = {
     tokens: formatTokens(totalTokens),
     costToday: formatCost(totalCost),
     uptime: formatUptime(avgUptime),
-    models: `${activeAgents} online`
+    models: `${activeAgents} online`,
+    // NUEVOS campos críticos para el frontend
+    agentsRunning: activeAgents,
+    activeMissions: activeMissions,
+    pendingApprovals: pendingApprovals
   };
   
-  return { stats };
+  // Mission statement hardcodeado por ahora
+  const missionStatement = "Empowering Marcelo to build automated systems that run 24/7 without manual intervention";
+  
+  return { stats, missionStatement };
 });
 
 // Get missions (runs mapped to missions format) - REPLACED BY ENHANCED VERSION BELOW
@@ -2096,6 +2110,37 @@ function calculateProgress(run: any): number {
   }
 }
 
+// Helper: Generate steps based on progress
+function generateMissionSteps(progress: number, status: string): Array<{id: string; name: string; status: string}> {
+  const steps = [
+    { id: '1', name: 'Initialize', status: 'pending' },
+    { id: '2', name: 'Process Input', status: 'pending' },
+    { id: '3', name: 'Execute Task', status: 'pending' },
+    { id: '4', name: 'Finalize', status: 'pending' }
+  ];
+  
+  if (progress >= 100 || status === 'completed') {
+    // All steps done
+    return steps.map(s => ({ ...s, status: 'done' }));
+  } else if (progress >= 75) {
+    steps[0].status = 'done';
+    steps[1].status = 'done';
+    steps[2].status = 'done';
+    steps[3].status = 'current';
+  } else if (progress >= 50) {
+    steps[0].status = 'done';
+    steps[1].status = 'done';
+    steps[2].status = 'current';
+  } else if (progress >= 25) {
+    steps[0].status = 'done';
+    steps[1].status = 'current';
+  } else if (progress > 0) {
+    steps[0].status = 'current';
+  }
+  
+  return steps;
+}
+
 // Helper: Get priority based on run source and tokens
 function getPriority(run: any): string {
   if (run.source === 'MAIN') return 'high';
@@ -2137,6 +2182,9 @@ server.get('/api/missions', async () => {
       ? calculateProgress(linkedRun)
       : (config?.progress ?? (m.status === 'completed' ? 100 : m.status === 'active' ? 50 : 0));
     
+    // Generate steps based on progress
+    const steps = generateMissionSteps(progress, m.status);
+    
     return {
       id: m.id,
       name: m.name,
@@ -2145,6 +2193,7 @@ server.get('/api/missions', async () => {
       priority: m.priority,
       owner: m.owner,
       progress,
+      steps,
       config: {
         ...config,
         progress,
@@ -2188,6 +2237,9 @@ server.get('/api/missions', async () => {
     else if (run.status === 'failed') missionStatus = 'paused';
     else if (run.status === 'queued') missionStatus = 'pending';
     
+    // Generate steps based on progress
+    const steps = generateMissionSteps(progress, missionStatus);
+    
     return {
       id: `mission_run_${run.id}`,
       name: run.label || `Run ${run.source} - ${run.model}`,
@@ -2196,6 +2248,7 @@ server.get('/api/missions', async () => {
       priority,
       owner: run.source === 'MAIN' ? 'Main Agent' : run.source === 'SUBAGENT' ? 'Sub-Agent' : 'System',
       progress,
+      steps,
       config: {
         runId: run.id,
         source: run.source,
@@ -2217,23 +2270,29 @@ server.get('/api/missions', async () => {
   const sessionMissions = sessions
     .filter(s => s.status === 'active')
     .slice(0, 5)
-    .map((session, index) => ({
-      id: `mission_session_${session.id}`,
-      name: `Session: ${session.agentName}`,
-      description: `Active session with ${session.model}`,
-      status: 'active',
-      priority: 'medium',
-      owner: session.agentName,
-      progress: Math.min(95, Math.round((session.tokens24h / 50000) * 100)) || 25,
-      config: {
-        sessionId: session.id,
-        model: session.model,
-        tokens24h: session.tokens24h,
-        progress: Math.min(95, Math.round((session.tokens24h / 50000) * 100)) || 25
-      },
-      createdAt: session.startedAt.getTime(),
-      updatedAt: session.lastSeenAt.getTime()
-    }));
+    .map((session, index) => {
+      const progress = Math.min(95, Math.round((session.tokens24h / 50000) * 100)) || 25;
+      const steps = generateMissionSteps(progress, 'active');
+      
+      return {
+        id: `mission_session_${session.id}`,
+        name: `Session: ${session.agentName}`,
+        description: `Active session with ${session.model}`,
+        status: 'active',
+        priority: 'medium',
+        owner: session.agentName,
+        progress,
+        steps,
+        config: {
+          sessionId: session.id,
+          model: session.model,
+          tokens24h: session.tokens24h,
+          progress
+        },
+        createdAt: session.startedAt.getTime(),
+        updatedAt: session.lastSeenAt.getTime()
+      };
+    });
   
   console.log('[MISSIONS_DEBUG] sessionMissions count:', sessionMissions.length);
   console.log('[MISSIONS_DEBUG] runMissions count:', runMissions.length);
