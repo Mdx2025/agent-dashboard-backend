@@ -2532,9 +2532,14 @@ function getPriority(run: any): string {
 }
 
 // Get all missions - creates missions from real runs if table is empty
-server.get('/api/missions', async () => {
+// SUPPORTS PAGINATION: /api/missions?status=backlog&offset=0&limit=20
+server.get('/api/missions', async (request) => {
+  const { status, offset = 0, limit = 20 } = request.query as any;
+  const parsedOffset = parseInt(offset) || 0;
+  const parsedLimit = Math.min(parseInt(limit) || 20, 100); // Cap at 100
+  
   // DEBUG: Log mission generation
-  console.log('[MISSIONS_DEBUG] Starting /api/missions endpoint');
+  console.log('[MISSIONS_DEBUG] Starting /api/missions endpoint', { status, offset: parsedOffset, limit: parsedLimit });
   
   // Get existing missions from the Mission table
   const existingMissions = await prisma.mission.findMany({
@@ -2546,7 +2551,7 @@ server.get('/api/missions', async () => {
   // Get runs to calculate progress and create virtual missions
   const runs = await prisma.run.findMany({
     orderBy: { startedAt: 'desc' },
-    take: 100
+    take: parsedLimit + parsedOffset + 50 // Fetch extra for pagination
   });
   
   console.log('[MISSIONS_DEBUG] runs count:', runs.length);
@@ -2592,10 +2597,10 @@ server.get('/api/missions', async () => {
   console.log('[MISSIONS_DEBUG] tableMissions count:', tableMissions.length);
   
   // ALWAYS create virtual missions from real runs (combines with table missions)
-  // Use the runs already fetched above (take only first 50 for virtual missions)
-  const runsForMissions = runs.slice(0, 50);
+  // Use the runs already fetched above
+  const runsForMissions = runs.slice(parsedOffset, parsedOffset + parsedLimit);
   
-  console.log('[MISSIONS_DEBUG] runsForMissions count:', runsForMissions.length);
+  console.log('[MISSIONS_DEBUG] runsForMissions count:', runsForMissions.length, 'slice:', parsedOffset, 'to', parsedOffset + parsedLimit);
   
   // Also get sessions for additional context
   const sessions = await prisma.session.findMany({
@@ -2609,8 +2614,6 @@ server.get('/api/missions', async () => {
   const runMissions = runsForMissions.map((run, index) => {
     const progress = calculateProgress(run);
     const priority = getPriority(run);
-    
-    console.log(`[MISSIONS_DEBUG] Processing run ${index + 1}/${runsForMissions.length}: id=${run.id}, status=${run.status}, progress=${progress}, priority=${priority}`);
     
     // Map run status to mission status
     let missionStatus = 'pending';
@@ -2676,15 +2679,38 @@ server.get('/api/missions', async () => {
       };
     });
   
-  console.log('[MISSIONS_DEBUG] sessionMissions count:', sessionMissions.length);
-  console.log('[MISSIONS_DEBUG] runMissions count:', runMissions.length);
-  
   // Combine and return: table missions + virtual missions from runs/sessions
-  const result = [...tableMissions, ...runMissions, ...sessionMissions];
-  console.log('[MISSIONS_DEBUG] FINAL result count:', result.length);
-  console.log('[MISSIONS_DEBUG] Breakdown - tableMissions:', tableMissions.length, 'runMissions:', runMissions.length, 'sessionMissions:', sessionMissions.length);
+  // Filter by status if provided
+  let result = [...tableMissions, ...runMissions, ...sessionMissions];
   
-  return result;
+  if (status) {
+    // Map status aliases
+    const statusMap: Record<string, string> = {
+      'backlog': 'pending',
+      'running': 'active',
+      'review': 'review',
+      'done': 'completed',
+      'active': 'active',
+      'completed': 'completed',
+      'paused': 'paused'
+    };
+    const mappedStatus = statusMap[status] || status;
+    result = result.filter(m => m.status === mappedStatus);
+  }
+  
+  // Apply pagination
+  const paginatedResult = result.slice(0, parsedLimit);
+  const hasMore = result.length > parsedLimit;
+  
+  console.log('[MISSIONS_DEBUG] FINAL result count:', paginatedResult.length, 'hasMore:', hasMore);
+  
+  return {
+    missions: paginatedResult,
+    hasMore,
+    total: result.length,
+    offset: parsedOffset,
+    limit: parsedLimit
+  };
 });
 
 // Get mission by ID
@@ -2780,12 +2806,17 @@ server.patch('/api/missions/:id', async (request: FastifyRequest<{ Params: { id:
 
 // =====================================================
 // MDX Control - Activity Feed Endpoint
+// SUPPORTS PAGINATION: /api/activity?offset=0&limit=50
 // =====================================================
-server.get('/api/activity', async () => {
+server.get('/api/activity', async (request) => {
+  const { offset = 0, limit = 50 } = request.query as any;
+  const parsedOffset = parseInt(offset) || 0;
+  const parsedLimit = Math.min(parseInt(limit) || 50, 100); // Cap at 100
+  
   // Get real runs with detailed info
   const runs = await prisma.run.findMany({
     orderBy: { startedAt: 'desc' },
-    take: 50
+    take: parsedLimit + parsedOffset + 20 // Fetch extra for pagination
   });
   
   // Get sessions for additional activity context
@@ -2869,10 +2900,19 @@ server.get('/api/activity', async () => {
   
   // Combine and sort by timestamp
   const allActivities = [...runActivities, ...sessionActivities]
-    .sort((a, b) => b.timestamp - a.timestamp)
-    .slice(0, 50);
+    .sort((a, b) => b.timestamp - a.timestamp);
   
-  return allActivities;
+  // Apply pagination
+  const paginatedActivities = allActivities.slice(parsedOffset, parsedOffset + parsedLimit);
+  const hasMore = allActivities.length > parsedOffset + parsedLimit;
+  
+  return {
+    activities: paginatedActivities,
+    hasMore,
+    total: allActivities.length,
+    offset: parsedOffset,
+    limit: parsedLimit
+  };
 });
 
 // =====================================================
