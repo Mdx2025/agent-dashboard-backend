@@ -128,29 +128,91 @@ server.post('/api/admin/init', async (request, reply) => {
   }
 });
 
+// Agent emoji mapping based on name
+const AGENT_EMOJIS: Record<string, string> = {
+  'main': '🤖',
+  'coder': '💻',
+  'researcher': '🔍',
+  'writer': '✍️',
+  'support': '🎧',
+  'heartbeat': '💓',
+  'reasoning': '🧠',
+  'clawma': '🐾',
+  'jarvis': '🦾',
+  'default': '🤖'
+};
+
+// Agent color mapping
+const AGENT_COLORS: Record<string, string> = {
+  'main': '#3B82F6',
+  'coder': '#10B981',
+  'researcher': '#8B5CF6',
+  'writer': '#F59E0B',
+  'support': '#EC4899',
+  'heartbeat': '#EF4444',
+  'reasoning': '#6366F1',
+  'clawma': '#14B8A6',
+  'jarvis': '#F97316',
+  'default': '#6B7280'
+};
+
+// Agent positions for 3D visualization
+const AGENT_POSITIONS: Record<string, { px: number; pz: number }> = {
+  'main': { px: 0, pz: 0 },
+  'coder': { px: 2, pz: 1 },
+  'researcher': { px: -2, pz: 1 },
+  'writer': { px: 1, pz: -2 },
+  'support': { px: -1, pz: -2 },
+  'heartbeat': { px: 0, pz: 3 },
+  'reasoning': { px: 3, pz: 0 },
+  'clawma': { px: -3, pz: 0 },
+  'jarvis': { px: 2, pz: -2 }
+};
+
+// Generate steps for missions based on status
+function generateSteps(status: string) {
+  const steps = [
+    { id: 'step_1', title: 'Initialize', status: 'completed', timestamp: Date.now() - 3600000 },
+    { id: 'step_2', title: 'Process Input', status: status === 'queued' ? 'pending' : 'completed', timestamp: Date.now() - 1800000 },
+    { id: 'step_3', title: 'Execute Task', status: status === 'running' ? 'in_progress' : status === 'queued' ? 'pending' : 'completed', timestamp: Date.now() - 900000 },
+    { id: 'step_4', title: 'Finalize', status: status === 'finished' ? 'completed' : status === 'failed' ? 'failed' : 'pending', timestamp: Date.now() }
+  ];
+  return steps;
+}
+
 // Get all agents
 server.get('/api/agents', async () => {
   const agents = await prisma.agent.findMany({
     orderBy: { name: 'asc' }
   });
-  return agents.map(a => ({
-    id: a.id,
-    name: a.name,
-    status: a.status,
-    type: a.type,
-    provider: a.provider,
-    model: a.model,
-    description: a.description,
-    runs24h: a.runs24h,
-    err24h: a.err24h,
-    costDay: a.costDay,
-    runsAll: a.runsAll,
-    tokensIn24h: a.tokensIn24h,
-    tokensOut24h: a.tokensOut24h,
-    costAll: a.costAll,
-    latencyAvg: a.latencyAvg,
-    uptime: a.uptime,
-  }));
+  return agents.map(a => {
+    const agentId = a.id.toLowerCase();
+    const pos = AGENT_POSITIONS[agentId] || { px: Math.random() * 4 - 2, pz: Math.random() * 4 - 2 };
+    return {
+      id: a.id,
+      name: a.name,
+      status: a.status,
+      type: a.type,
+      provider: a.provider,
+      model: a.model,
+      description: a.description,
+      runs24h: a.runs24h,
+      err24h: a.err24h,
+      costDay: a.costDay,
+      runsAll: a.runsAll,
+      tokensIn24h: a.tokensIn24h,
+      tokensOut24h: a.tokensOut24h,
+      costAll: a.costAll,
+      latencyAvg: a.latencyAvg,
+      uptime: a.uptime,
+      // 3D visualization data
+      px: pos.px,
+      pz: pos.pz,
+      color: AGENT_COLORS[agentId] || AGENT_COLORS.default,
+      emoji: AGENT_EMOJIS[agentId] || AGENT_EMOJIS.default,
+      task: a.status === 'active' ? 'Processing tasks' : a.status === 'idle' ? 'Waiting for tasks' : 'Offline'
+    };
+  });
 });
 
 // Get agent by ID
@@ -163,6 +225,9 @@ server.get('/api/agents/:id', async (request: FastifyRequest<{ Params: { id: str
     reply.code(404);
     return { error: 'Agent not found' };
   }
+  
+  const agentId = agent.id.toLowerCase();
+  const pos = AGENT_POSITIONS[agentId] || { px: Math.random() * 4 - 2, pz: Math.random() * 4 - 2 };
   
   return {
     id: agent.id,
@@ -181,6 +246,12 @@ server.get('/api/agents/:id', async (request: FastifyRequest<{ Params: { id: str
     costAll: agent.costAll,
     latencyAvg: agent.latencyAvg,
     uptime: agent.uptime,
+    // 3D visualization data
+    px: pos.px,
+    pz: pos.pz,
+    color: AGENT_COLORS[agentId] || AGENT_COLORS.default,
+    emoji: AGENT_EMOJIS[agentId] || AGENT_EMOJIS.default,
+    task: agent.status === 'active' ? 'Processing tasks' : agent.status === 'idle' ? 'Waiting for tasks' : 'Offline'
   };
 });
 
@@ -355,28 +426,38 @@ server.get('/api/dashboard/overview', async () => {
       prisma.agent.aggregate({ _sum: { costDay: true } }).then(r => r._sum.costDay || 0)
     ]);
 
-    // Get agents
+    // Get agents with 3D data
     const agents = await prisma.agent.findMany({ orderBy: { name: 'asc' } });
-    const agentsMapped = agents.map(a => ({
-      id: a.id,
-      name: a.name,
-      status: a.status,
-      type: a.type,
-      provider: a.provider,
-      model: a.model,
-      description: a.description,
-      runs24h: a.runs24h,
-      err24h: a.err24h,
-      costDay: a.costDay,
-      runsAll: a.runsAll,
-      tokensIn24h: a.tokensIn24h,
-      tokensOut24h: a.tokensOut24h,
-      costAll: a.costAll,
-      latencyAvg: a.latencyAvg,
-      uptime: a.uptime,
-    }));
+    const agentsMapped = agents.map(a => {
+      const agentId = a.id.toLowerCase();
+      const pos = AGENT_POSITIONS[agentId] || { px: Math.random() * 4 - 2, pz: Math.random() * 4 - 2 };
+      return {
+        id: a.id,
+        name: a.name,
+        status: a.status,
+        type: a.type,
+        provider: a.provider,
+        model: a.model,
+        description: a.description,
+        runs24h: a.runs24h,
+        err24h: a.err24h,
+        costDay: a.costDay,
+        runsAll: a.runsAll,
+        tokensIn24h: a.tokensIn24h,
+        tokensOut24h: a.tokensOut24h,
+        costAll: a.costAll,
+        latencyAvg: a.latencyAvg,
+        uptime: a.uptime,
+        // 3D visualization data
+        px: pos.px,
+        pz: pos.pz,
+        color: AGENT_COLORS[agentId] || AGENT_COLORS.default,
+        emoji: AGENT_EMOJIS[agentId] || AGENT_EMOJIS.default,
+        task: a.status === 'active' ? 'Processing tasks' : a.status === 'idle' ? 'Waiting for tasks' : 'Offline'
+      };
+    });
 
-    // Get missions (runs mapped to missions)
+    // Get missions (runs mapped to missions with steps)
     const runs = await prisma.run.findMany({
       orderBy: { startedAt: 'desc' },
       take: 50
@@ -389,7 +470,8 @@ server.get('/api/dashboard/overview', async () => {
       agent: r.source,
       priority: r.status === 'failed' ? 'high' : r.status === 'running' ? 'medium' : 'low',
       progress: r.status === 'finished' ? 100 : r.status === 'running' ? 50 : 0,
-      dueDate: r.startedAt ? new Date(r.startedAt.getTime() + 24 * 60 * 60 * 1000).toISOString() : null
+      dueDate: r.startedAt ? new Date(r.startedAt.getTime() + 24 * 60 * 60 * 1000).toISOString() : null,
+      steps: generateSteps(r.status)
     }));
 
     // Get activity (last 10 logs)
@@ -468,10 +550,163 @@ server.get('/api/missions', async () => {
       agent: r.source,
       priority: r.status === 'failed' ? 'high' : r.status === 'running' ? 'medium' : 'low',
       progress: r.status === 'finished' ? 100 : r.status === 'running' ? 50 : 0,
-      dueDate: r.startedAt ? new Date(r.startedAt.getTime() + 24 * 60 * 60 * 1000).toISOString() : null
+      dueDate: r.startedAt ? new Date(r.startedAt.getTime() + 24 * 60 * 60 * 1000).toISOString() : null,
+      steps: generateSteps(r.status)
     }));
   } catch (error) {
     console.error('Error fetching missions:', error);
+    return [];
+  }
+});
+
+// GET /api/opportunities - Opportunities for the feed
+server.get('/api/opportunities', async () => {
+  try {
+    // Get recent runs as opportunities
+    const runs = await prisma.run.findMany({
+      orderBy: { startedAt: 'desc' },
+      take: 20
+    });
+
+    // Generate opportunities from runs and other activities
+    const opportunities = runs.map((r, index) => ({
+      id: `opp_${r.id}`,
+      title: r.label || `Opportunity ${index + 1}`,
+      description: `Run from ${r.source} using ${r.model}`,
+      type: r.status === 'failed' ? 'error' : r.status === 'finished' ? 'success' : 'info',
+      status: r.status,
+      agent: r.source,
+      value: Math.floor(Math.random() * 1000) + 100,
+      timestamp: r.startedAt?.getTime() || Date.now(),
+      tags: [r.source, r.model.split('/')[0] || 'unknown'],
+      priority: r.status === 'failed' ? 'high' : r.status === 'running' ? 'medium' : 'low'
+    }));
+
+    return opportunities;
+  } catch (error) {
+    console.error('Error fetching opportunities:', error);
+    return [];
+  }
+});
+
+// GET /api/artifacts - Artifacts produced by agents
+server.get('/api/artifacts', async () => {
+  try {
+    // Get recent runs as artifacts source
+    const runs = await prisma.run.findMany({
+      orderBy: { startedAt: 'desc' },
+      take: 50
+    });
+
+    // Generate artifacts from runs
+    const artifacts = runs.map((r, index) => ({
+      id: `art_${r.id}`,
+      name: `${r.label || 'Artifact'}_${index + 1}`,
+      type: r.status === 'finished' ? 'output' : r.status === 'failed' ? 'error' : 'processing',
+      format: 'json',
+      size: Math.floor(Math.random() * 10000) + 100,
+      agent: r.source,
+      missionId: r.id,
+      status: r.status,
+      createdAt: r.startedAt?.getTime() || Date.now(),
+      url: `/api/artifacts/${r.id}/download`
+    }));
+
+    return artifacts;
+  } catch (error) {
+    console.error('Error fetching artifacts:', error);
+    return [];
+  }
+});
+
+// GET /api/inbox - Messages in inbox
+server.get('/api/inbox', async () => {
+  try {
+    // Get recent logs as inbox messages
+    const logs = await prisma.logEntry.findMany({
+      orderBy: { timestamp: 'desc' },
+      take: 50
+    });
+
+    // Get recent sessions
+    const sessions = await prisma.session.findMany({
+      orderBy: { lastSeenAt: 'desc' },
+      take: 20
+    });
+
+    // Combine logs and sessions as inbox messages
+    const logMessages = logs.map((l, index) => ({
+      id: `msg_log_${l.id}`,
+      type: l.level === 'ERROR' ? 'error' : l.level === 'WARN' ? 'warning' : 'info',
+      title: l.source,
+      message: l.message,
+      sender: l.source,
+      timestamp: l.timestamp.getTime(),
+      read: index > 10, // First 10 are unread
+      priority: l.level === 'ERROR' ? 'high' : l.level === 'WARN' ? 'medium' : 'low',
+      metadata: l.extra
+    }));
+
+    const sessionMessages = sessions.map((s, index) => ({
+      id: `msg_sess_${s.id}`,
+      type: 'session',
+      title: `Session ${s.agentName || 'Unknown'}`,
+      message: `Session status: ${s.status}`,
+      sender: s.agentName || 'System',
+      timestamp: s.lastSeenAt?.getTime() || Date.now(),
+      read: index > 5,
+      priority: s.status === 'active' ? 'medium' : 'low',
+      metadata: { model: s.model, tokens24h: s.tokens24h }
+    }));
+
+    return [...logMessages, ...sessionMessages].sort((a, b) => b.timestamp - a.timestamp);
+  } catch (error) {
+    console.error('Error fetching inbox:', error);
+    return [];
+  }
+});
+
+// GET /api/brainx/memories - BrainX memories
+server.get('/api/brainx/memories', async () => {
+  try {
+    // Get recent sessions as memory sources
+    const sessions = await prisma.session.findMany({
+      orderBy: { lastSeenAt: 'desc' },
+      take: 30
+    });
+
+    // Get recent runs
+    const runs = await prisma.run.findMany({
+      orderBy: { startedAt: 'desc' },
+      take: 30
+    });
+
+    // Generate memories from sessions and runs
+    const sessionMemories = sessions.map((s, index) => ({
+      id: `mem_sess_${s.id}`,
+      content: `Session ${s.agentName || 'Unknown'} was ${s.status} using model ${s.model}`,
+      type: 'session_memory',
+      agent: s.agentName || 'system',
+      sessionId: s.id,
+      timestamp: s.lastSeenAt?.getTime() || Date.now(),
+      relevance: Math.random() * 0.5 + 0.5,
+      tags: ['session', s.status, s.model?.split('/')[0] || 'unknown']
+    }));
+
+    const runMemories = runs.map((r, index) => ({
+      id: `mem_run_${r.id}`,
+      content: `Run ${r.label} from ${r.source} completed with status ${r.status}`,
+      type: 'run_memory',
+      agent: r.source,
+      runId: r.id,
+      timestamp: r.startedAt?.getTime() || Date.now(),
+      relevance: Math.random() * 0.5 + 0.5,
+      tags: ['run', r.status, r.source]
+    }));
+
+    return [...sessionMemories, ...runMemories].sort((a, b) => b.timestamp - a.timestamp);
+  } catch (error) {
+    console.error('Error fetching brainx memories:', error);
     return [];
   }
 });
@@ -625,24 +860,34 @@ server.get('/agents', async () => {
   const agents = await prisma.agent.findMany({
     orderBy: { name: 'asc' }
   });
-  return agents.map(a => ({
-    id: a.id,
-    name: a.name,
-    status: a.status,
-    type: a.type,
-    provider: a.provider,
-    model: a.model,
-    description: a.description,
-    runs24h: a.runs24h,
-    err24h: a.err24h,
-    costDay: a.costDay,
-    runsAll: a.runsAll,
-    tokensIn24h: a.tokensIn24h,
-    tokensOut24h: a.tokensOut24h,
-    costAll: a.costAll,
-    latencyAvg: a.latencyAvg,
-    uptime: a.uptime,
-  }));
+  return agents.map(a => {
+    const agentId = a.id.toLowerCase();
+    const pos = AGENT_POSITIONS[agentId] || { px: Math.random() * 4 - 2, pz: Math.random() * 4 - 2 };
+    return {
+      id: a.id,
+      name: a.name,
+      status: a.status,
+      type: a.type,
+      provider: a.provider,
+      model: a.model,
+      description: a.description,
+      runs24h: a.runs24h,
+      err24h: a.err24h,
+      costDay: a.costDay,
+      runsAll: a.runsAll,
+      tokensIn24h: a.tokensIn24h,
+      tokensOut24h: a.tokensOut24h,
+      costAll: a.costAll,
+      latencyAvg: a.latencyAvg,
+      uptime: a.uptime,
+      // 3D visualization data
+      px: pos.px,
+      pz: pos.pz,
+      color: AGENT_COLORS[agentId] || AGENT_COLORS.default,
+      emoji: AGENT_EMOJIS[agentId] || AGENT_EMOJIS.default,
+      task: a.status === 'active' ? 'Processing tasks' : a.status === 'idle' ? 'Waiting for tasks' : 'Offline'
+    };
+  });
 });
 
 server.get('/sessions', async () => {
