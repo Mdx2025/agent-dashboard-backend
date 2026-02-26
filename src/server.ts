@@ -151,7 +151,10 @@ const AGENT_THREADS = [
   { id: "agent_clawma", name: "🤖 Clawma", emoji: "🤖", agentId: "clawma", status: "online" },
   { id: "agent_main", name: "⭐ Main", emoji: "⭐", agentId: "main", status: "online" },
   { id: "agent_support", name: "🔧 Support", emoji: "🔧", agentId: "support", status: "online" },
-  { id: "agent_heartbeat", name: "💓 Heartbeat", emoji: "💓", agentId: "heartbeat", status: "online" }
+  { id: "agent_heartbeat", name: "💓 Heartbeat", emoji: "💓", agentId: "heartbeat", status: "online" },
+  { id: "agent_raider", name: "⚔️ Raider", emoji: "⚔️", agentId: "raider", status: "online" },
+  { id: "agent_researcher", name: "🔬 Researcher", emoji: "🔬", agentId: "researcher", status: "online" },
+  { id: "agent_reasoning", name: "🧠 Reasoning", emoji: "🧠", agentId: "reasoning", status: "online" }
 ];
 
 // Agent emoji mapping based on name
@@ -757,7 +760,10 @@ const AGENT_RESPONSES: Record<string, string> = {
   clawma: "🤖 Entendido. Trabajando en ello.",
   main: "⭐ A la orden. ¿Qué necesitas?",
   support: "🔧 Soporte técnico listo. ¿En qué puedo ayudarte?",
-  heartbeat: "💓 Sistema funcionando correctamente. Pulso activo."
+  heartbeat: "💓 Sistema funcionando correctamente. Pulso activo.",
+  raider: "⚔️ Raider listo para la incursión. ¿Cuál es el objetivo?",
+  researcher: "🔬 Investigador preparado. ¿Qué necesitas descubrir?",
+  reasoning: "🧠 Razonamiento activado. Analizando situación..."
 };
 
 // POST /api/inbox/:threadId/ping - Send ping/message from operator to agent
