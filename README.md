@@ -1,202 +1,165 @@
-# Agent Operations Dashboard
+# MDX Control Backend
 
-Dashboard en tiempo real para monitoreo y gestión de agentes de IA.
+Backend API para el dashboard de control de agentes MDX.
 
-## 🚀 Deploy
+## Estructura del Proyecto
 
-**Producción:**
-- **Frontend:** https://agent-dashboard-production-b3a8.up.railway.app
-- **Backend:** https://agent-dashboard-backend-production.up.railway.app/api
+```
+mdx-control-backend/
+├── src/
+│   ├── routes-new/       # Endpoints de API
+│   │   ├── dashboard.js  # Stats globales
+│   │   ├── missions.js  # CRUD de misiones
+│   │   ├── brainx.js     # Memorias BrainX
+│   │   ├── activity.js   # Feed de actividad
+│   │   ├── agents.js     # Gestión de agentes
+│   │   └── health.js     # Health checks
+│   ├── websocket/        # WebSocket server
+│   │   └── index.js
+│   ├── models/           # Modelos Sequelize
+│   │   ├── Mission.js
+│   │   ├── MissionStep.js
+│   │   ├── BrainXMemory.js
+│   │   └── Activity.js
+│   └── index.js          # Entry point
+├── migrations/
+├── .env.example
+└── package.json
+```
 
-**Railway Project:** "Agent dashboard Clw"
+## Setup
 
-## 📊 Funcionalidades
+### 1. Instalar dependencias
 
-### Overview
-- Sessions activas y métricas en tiempo real
-- Tokens in/out (24h)
-- Costos diarios
-- Agents listados con status
-- Recent Runs con duración y estado
+```bash
+cd mdx-control-backend
+npm install
+```
 
-### Token Usage
-- Breakdown por modelo
-- Histórico de uso de tokens
-- Costos por período
+### 2. Configurar variables de entorno
 
-### Agents
-- Lista de todos los agentes (8 configurados)
-- Runs, errores, costo, latencia
-- Filtros por status
-- Detalle de agente (Drawer)
+```bash
+cp .env.example .env
+# Edita .env con tu configuración
+```
 
-### Skills
-- 29 skills de OpenClaw sincronizadas
-- Paginación (12 por página)
-- Búsqueda por nombre
-- Categorías: productivity, development, content, utilities, communication
-- Métricas de uso y latencia
+Variables disponibles:
+- `PORT` - Puerto del servidor (default: 3001)
+- `DATABASE_URL` - URL de base de datos (default: sqlite local)
+- `CORS_ORIGIN` - Orígenes permitidos para CORS (separados por coma)
+
+### 3. Iniciar el servidor
+
+```bash
+# Desarrollo
+npm run dev
+
+# Producción
+npm start
+```
+
+El servidor escuchará en `http://localhost:3001`
+
+## Endpoints API
+
+### Dashboard
+- `GET /api/dashboard/overview` - Stats globales
+
+### Agentes
+- `GET /api/agents` - Lista de agentes
+- `GET /api/agents/:id` - Detalle de agente
+- `GET /api/agents/:id/logs` - Logs del agente
+- `POST /api/agents/:id/status` - Actualizar status
+
+### Misiones
+- `GET /api/missions` - Lista de misiones
+- `GET /api/missions/:id` - Detalle de misión
+- `POST /api/missions` - Crear misión
+- `PATCH /api/missions/:id` - Actualizar misión
+- `DELETE /api/missions/:id` - Eliminar misión
+
+### Activity
+- `GET /api/activity` - Feed de actividad
+- `POST /api/activity` - Crear actividad
+- `GET /api/activity/recent` - Actividad reciente
+
+### BrainX
+- `GET /api/brainx` - Lista de memorias
+- `POST /api/brainx` - Crear memoria
+- `POST /api/brainx/search` - Buscar memorias
+- `DELETE /api/brainx/:id` - Eliminar memoria
 
 ### Health
-- Estado de servicios (Redis, Postgres, Backend, Frontend)
-- Gateway status
-- Métricas de latencia
-- CPU y memoria
+- `GET /api/health` - Health check básico
+- `GET /api/health/services` - Estado de servicios
 
-### Logs
-- Logs del sistema
-- Filtrado por nivel
+## WebSocket
 
-## 🎨 UI/UX
+Conecta a `ws://localhost:3001` (o el puerto configurado)
 
-### Sistema de Diseño
+### Canales
+- `agent.status` - Cambios de status de agentes
+- `activity.new` - Nueva actividad
+- `mission.update` - Actualización de misiones
+- `notifications` - Notificaciones
 
-**Tipografía:**
-- Headers: 20-22px, font-weight 700
-- Subtítulos: 12px
-- KPI values: 28-32px
-- Labels: uppercase, letter-spacing 0.5px
+### Eventos del cliente
+- `join` - Unirse a un canal
+- `leave` - Salir de un canal
+- `subscribe:agent` - Suscribirse a un agente
+- `subscribe:mission` - Suscribirse a una misión
 
-**Spacing:**
-- Container padding: 18-22px
-- Grid gap: 12-20px
-- Card padding: 14-18px
+## Desarrollo
 
-**Componentes:**
-- Cards con hover effects
-- Zebra striping en tablas
-- Badges de status (active/idle/error)
-- Paginación y búsqueda
+### Estructura de modelos
 
-## 🔄 Sincronización
+**Mission**
+- id (UUID)
+- title (STRING)
+- agentId (STRING)
+- status (pending|in_progress|completed|cancelled)
+- progress (INTEGER 0-100)
+- priority (low|medium|high|urgent)
+- dueDate (DATE)
+- metadata (JSONB)
 
-### Cron Job
-El sync corre automáticamente cada 5 minutos:
+**MissionStep**
+- id (UUID)
+- missionId (UUID)
+- name (STRING)
+- order (INTEGER)
+- done (BOOLEAN)
+- current (BOOLEAN)
+
+**BrainXMemory**
+- id (UUID)
+- content (TEXT)
+- embedding (ARRAY[FLOAT])
+- workspace (STRING)
+- metadata (JSONB)
+
+**Activity**
+- id (UUID)
+- agentId (STRING)
+- type (agent|mission|system|user)
+- action (STRING)
+- details (JSONB)
+- timestamp (DATE)
+
+## Deploy
+
+### Railway
 
 ```bash
-# Crontab
-*/5 * * * * /usr/bin/node /tmp/agent-dashboard-backend-impl/scripts/sync-real.js
+railway init
+railway up
 ```
 
-### Script de Sync
-- **Ubicación:** `/tmp/agent-dashboard-backend-impl/scripts/sync-real.js`
-- **Agentes sincronizados:** clawma, coder, heartbeat, main, reasoning, researcher, support, writer
-- **Runs:** Últimos 200 (7 días)
-- **Sesiones:** Últimas 100
-- **Log:** `/tmp/sync-real.log`
+Configura las variables de entorno en el dashboard de Railway.
 
-### Endpoint Manual
+### Docker
+
 ```bash
-curl -X POST https://agent-dashboard-backend-production.up.railway.app/api/sync \
-  -H "Content-Type: application/json" \
-  -d '{
-    "agents": [...],
-    "sessions": [...],
-    "runs": [...],
-    "skills": [...]
-  }'
+docker build -t mdx-control-backend .
+docker run -p 3001:3001 mdx-control-backend
 ```
-
-## 🏗️ Arquitectura
-
-```
-┌─────────────────┐
-│   OpenClaw      │
-│  (Data Source)  │
-└────────┬────────┘
-         │
-         │ Sync Script (cada 5 min)
-         ↓
-┌─────────────────┐
-│ Backend API     │
-│ (Fastify)       │
-│                 │
-│ /api/agents     │
-│ /api/sessions   │
-│ /api/runs       │
-│ /api/skills     │
-│ /api/logs       │
-│ /api/services   │
-│ /api/health     │
-└────────┬────────┘
-         │
-         │ PostgreSQL + Redis
-         ↓
-┌─────────────────┐
-│ Frontend        │
-│ (React + Vite)  │
-│                 │
-│ - Overview      │
-│ - Token Usage   │
-│ - Agents        │
-│ - Skills        │
-│ - Health        │
-│ - Logs          │
-└─────────────────┘
-```
-
-## 🔧 Tecnologías
-
-**Frontend:**
-- React 18
-- Vite
-- Tailwind CSS
-- Node.js (Express server)
-
-**Backend:**
-- Fastify
-- Prisma ORM
-- PostgreSQL (Railway)
-- Redis (Railway)
-
-**Deploy:**
-- Railway.app
-- GitHub integration (auto-deploy)
-
-## 📝 Variables de Entorno
-
-### Frontend (.env)
-```bash
-VITE_API_BASE_URL=https://agent-dashboard-backend-production.up.railway.app/api
-```
-
-### Backend (.env)
-```bash
-DATABASE_URL=postgresql://...@postgres-15m.railway.internal:5432/railway
-REDIS_URL=redis://...@redis.railway.internal:6379
-```
-
-## 🚧 Estado del Proyecto
-
-**✅ Funcional:**
-- Frontend desplegado y accesible
-- Backend API funcionando
-- 8 agents configurados
-- 29 skills sincronizadas
-- Sync automático cada 5 minutos
-- UI/UX estandarizado
-
-**⏳ En desarrollo:**
-- Logs endpoint
-- Conexión en tiempo real con OpenClaw
-- Métricas automáticas
-
-**📋 Próximos pasos:**
-- [ ] Implementar websockets para updates en vivo
-- [ ] Agregar autenticación
-- [ ] Dashboard de métricas avanzadas
-
-## 📚 Repositorios
-
-- **Frontend:** https://github.com/Mdx2025/agent-dashboard
-- **Backend:** https://github.com/Mdx2025/agent-dashboard-backend
-
-## 📖 Documentación
-
-- **Dashboard:** https://agent-dashboard-production-b3a8.up.railway.app
-- **Backend API:** https://agent-dashboard-backend-production.up.railway.app/api
-
----
-
-**Última actualización:** 2026-02-25
-**Estado:** ✅ Producción activa
