@@ -4,6 +4,7 @@ import cors from '@fastify/cors';
 import { PrismaClient } from '@prisma/client';
 import fs from 'fs';
 import path from 'path';
+import { execSync } from 'child_process';
 
 const server = Fastify({ logger: true });
 const prisma = new PrismaClient();
@@ -866,7 +867,7 @@ server.post('/api/inbox/:threadId/ping', async (request: FastifyRequest<{ Params
           // Get real runs for this agent from DB
           const runs = await prisma.run.findMany({
             where: { 
-              source: { equals: agentName.toUpperCase(), mode: 'insensitive' }
+              source: agentName.toUpperCase() as any
             },
             orderBy: { startedAt: 'desc' },
             take: 10
@@ -896,7 +897,7 @@ server.post('/api/inbox/:threadId/ping', async (request: FastifyRequest<{ Params
           // Find and stop active runs for this agent
           const runs = await prisma.run.findMany({
             where: { 
-              source: { equals: agentName.toUpperCase(), mode: 'insensitive' },
+              source: agentName.toUpperCase() as any,
               status: 'running'
             },
             orderBy: { startedAt: 'desc' },
@@ -906,6 +907,8 @@ server.post('/api/inbox/:threadId/ping', async (request: FastifyRequest<{ Params
           if (runs.length > 0) {
             // Mark runs as failed with stop reason
             let stoppedCount = 0;
+            let openclawResults: string[] = [];
+            
             for (const run of runs) {
               await prisma.run.update({
                 where: { id: run.id },
@@ -915,8 +918,25 @@ server.post('/api/inbox/:threadId/ping', async (request: FastifyRequest<{ Params
                 }
               });
               stoppedCount++;
+              
+              // Try to kill via OpenClaw CLI if run has label
+              if (run.label) {
+                try {
+                  // Try to find and kill subagent by label
+                  const cmd = `openclaw agent --agent ${agentName} --message "/subagents kill all" --json 2>&1 || true`;
+                  const result = execSync(cmd, { timeout: 10000, encoding: 'utf8' });
+                  openclawResults.push(`OpenClaw: ${result.substring(0, 200)}`);
+                } catch (e: any) {
+                  openclawResults.push(`OpenClaw: ${e.message?.substring(0, 100) || 'Command sent'}`);
+                }
+              }
             }
-            responseText = `🛑 **Solicitud de parada procesada**\n\n⏹️ Se han detenido ${stoppedCount} tarea(s) activa(s) del agente ${agentName}.\n\nLas tareas han sido marcadas como detenidas.`;
+            
+            const openclawMsg = openclawResults.length > 0 
+              ? `\n🔄 Señal de parada enviada a OpenClaw.` 
+              : '';
+            
+            responseText = `🛑 **Solicitud de parada procesada**\n\n⏹️ Se han detenido ${stoppedCount} tarea(s) activa(s) del agente ${agentName}.${openclawMsg}\n\nLas tareas han sido marcadas como detenidas.`;
           } else {
             responseText = `🛑 **Solicitud de parada**\n\nEl agente ${agentName} no tiene tareas activas en ejecución.\n✅ Sistema limpio`;
           }

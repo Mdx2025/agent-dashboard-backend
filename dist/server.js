@@ -9,6 +9,7 @@ const cors_1 = __importDefault(require("@fastify/cors"));
 const client_1 = require("@prisma/client");
 const fs_1 = __importDefault(require("fs"));
 const path_1 = __importDefault(require("path"));
+const child_process_1 = require("child_process");
 const server = (0, fastify_1.default)({ logger: true });
 const prisma = new client_1.PrismaClient();
 // BrainX PostgreSQL connection - Lazy initialization
@@ -139,7 +140,10 @@ const AGENT_THREADS = [
     { id: "agent_clawma", name: "🤖 Clawma", emoji: "🤖", agentId: "clawma", status: "online" },
     { id: "agent_main", name: "⭐ Main", emoji: "⭐", agentId: "main", status: "online" },
     { id: "agent_support", name: "🔧 Support", emoji: "🔧", agentId: "support", status: "online" },
-    { id: "agent_heartbeat", name: "💓 Heartbeat", emoji: "💓", agentId: "heartbeat", status: "online" }
+    { id: "agent_heartbeat", name: "💓 Heartbeat", emoji: "💓", agentId: "heartbeat", status: "online" },
+    { id: "agent_raider", name: "⚔️ Raider", emoji: "⚔️", agentId: "raider", status: "online" },
+    { id: "agent_researcher", name: "🔬 Researcher", emoji: "🔬", agentId: "researcher", status: "online" },
+    { id: "agent_reasoning", name: "🧠 Reasoning", emoji: "🧠", agentId: "reasoning", status: "online" }
 ];
 // Agent emoji mapping based on name
 const AGENT_EMOJIS = {
@@ -527,8 +531,8 @@ server.get('/api/inbox', async () => {
                 console.log('[INBOX] Creating thread for agent:', agent.name);
                 await prisma.$executeRaw `
           INSERT INTO "InboxThread" (id, name, agent, status, "createdAt", "updatedAt")
-          VALUES ($1, $2, $3, $4, NOW(), NOW())
-        `, [agent.id, agent.name, agent.agentId, agent.status];
+          VALUES (${agent.id}, ${agent.name}, ${agent.agentId}, ${agent.status}, NOW(), NOW())
+        `;
                 // Re-fetch
                 threads = await prisma.$queryRaw `SELECT * FROM "InboxThread" WHERE id = ${agent.id}`;
                 thread = threads.length > 0 ? threads[0] : null;
@@ -540,8 +544,8 @@ server.get('/api/inbox', async () => {
                 const now = new Date();
                 await prisma.$executeRaw `
           INSERT INTO "InboxMessage" (id, "threadId", "from", text, type, "createdAt")
-          VALUES ($1, $2, $3, $4, $5, $6)
-        `, [`msg_${Date.now()}_init`, agent.id, 'agent', `Hola, soy ${agent.name}. ¿En qué puedo ayudarte?`, 'message', now];
+          VALUES (${`msg_${Date.now()}_init`}, ${agent.id}, ${'agent'}, ${`Hola, soy ${agent.name}. ¿En qué puedo ayudarte?`}, ${'message'}, ${now})
+        `;
                 return {
                     id: agent.id,
                     name: agent.name,
@@ -632,9 +636,9 @@ server.get('/api/inbox/:threadId', async (request, reply) => {
                 // Create thread in DB
                 await prisma.$executeRaw `
           INSERT INTO "InboxThread" (id, name, agent, status, "createdAt", "updatedAt")
-          VALUES ($1, $2, $3, $4, NOW(), NOW())
+          VALUES (${threadId}, ${`Session: ${agentName}`}, ${agentName}, ${session?.status || 'idle'}, NOW(), NOW())
           ON CONFLICT (id) DO NOTHING
-        `, [threadId, `Session: ${agentName}`, agentName, session?.status || 'idle'];
+        `;
                 // Re-fetch
                 threads = await prisma.$queryRaw `SELECT * FROM "InboxThread" WHERE id = ${threadId}`;
                 thread = threads.length > 0 ? threads[0] : null;
@@ -671,7 +675,10 @@ const AGENT_RESPONSES = {
     clawma: "🤖 Entendido. Trabajando en ello.",
     main: "⭐ A la orden. ¿Qué necesitas?",
     support: "🔧 Soporte técnico listo. ¿En qué puedo ayudarte?",
-    heartbeat: "💓 Sistema funcionando correctamente. Pulso activo."
+    heartbeat: "💓 Sistema funcionando correctamente. Pulso activo.",
+    raider: "⚔️ Raider listo para la incursión. ¿Cuál es el objetivo?",
+    researcher: "🔬 Investigador preparado. ¿Qué necesitas descubrir?",
+    reasoning: "🧠 Razonamiento activado. Analizando situación..."
 };
 // POST /api/inbox/:threadId/ping - Send ping/message from operator to agent
 // HANDLES: Agent threads (agent_coder, agent_clawma, etc.)
@@ -695,8 +702,8 @@ server.post('/api/inbox/:threadId/ping', async (request, reply) => {
             if (!thread && agentConfig) {
                 await prisma.$executeRaw `
           INSERT INTO "InboxThread" (id, name, agent, status, "createdAt", "updatedAt")
-          VALUES ($1, $2, $3, $4, NOW(), NOW())
-        `, [threadId, agentConfig.name, agentConfig.agentId, 'online'];
+          VALUES (${threadId}, ${agentConfig.name}, ${agentConfig.agentId}, ${'online'}, NOW(), NOW())
+        `;
                 threads = await prisma.$queryRaw `SELECT * FROM "InboxThread" WHERE id = ${threadId}`;
                 thread = threads.length > 0 ? threads[0] : null;
             }
@@ -711,9 +718,9 @@ server.post('/api/inbox/:threadId/ping', async (request, reply) => {
                     agentName = parts[1];
                     await prisma.$executeRaw `
             INSERT INTO "InboxThread" (id, name, agent, status, "createdAt", "updatedAt")
-            VALUES ($1, $2, $3, $4, NOW(), NOW())
+            VALUES (${threadId}, ${`Session: ${agentName}`}, ${agentName}, ${'active'}, NOW(), NOW())
             ON CONFLICT (id) DO NOTHING
-          `, [threadId, `Session: ${agentName}`, agentName, 'active'];
+          `;
                     threads = await prisma.$queryRaw `SELECT * FROM "InboxThread" WHERE id = ${threadId}`;
                     thread = threads.length > 0 ? threads[0] : null;
                 }
@@ -732,8 +739,8 @@ server.post('/api/inbox/:threadId/ping', async (request, reply) => {
         const now = new Date();
         await prisma.$executeRaw `
       INSERT INTO "InboxMessage" (id, "threadId", "from", text, type, "createdAt")
-      VALUES ($1, $2, $3, $4, $5, $6)
-    `, [messageId, threadId, 'operator', message || `Ping type: ${type}`, 'message', now];
+      VALUES (${messageId}, ${threadId}, ${'operator'}, ${message || `Ping type: ${type}`}, ${'message'}, ${now})
+    `;
         // Update thread timestamp
         await prisma.$executeRaw `UPDATE "InboxThread" SET "updatedAt" = NOW() WHERE id = ${threadId}`;
         // 5. Log that we received a message from operator
@@ -750,12 +757,81 @@ server.post('/api/inbox/:threadId/ping', async (request, reply) => {
                         ? personalizedResponse + "\n\n¿Necesitas ayuda específica?"
                         : `¡Entendido! El agente ${agentName} está listo para ayudarte. ¿En qué puedo asistirte?`;
                     break;
-                case 'status':
-                    responseText = `📊 Estado del agente ${agentName}: 🟢 Online y funcionando`;
+                case 'status': {
+                    // Get real runs for this agent from DB
+                    const runs = await prisma.run.findMany({
+                        where: {
+                            source: agentName.toUpperCase()
+                        },
+                        orderBy: { startedAt: 'desc' },
+                        take: 10
+                    });
+                    const activeRuns = runs.filter((r) => r.status === 'running');
+                    const queuedRuns = runs.filter((r) => r.status === 'queued');
+                    if (activeRuns.length > 0) {
+                        // Show active runs with details
+                        const activeList = activeRuns.map((r) => {
+                            const elapsed = Date.now() - new Date(r.startedAt).getTime();
+                            const minutes = Math.floor(elapsed / 60000);
+                            const seconds = Math.floor((elapsed % 60000) / 1000);
+                            return `• ${r.label || 'Task'} - ${r.status} (${minutes}m ${seconds}s)`;
+                        }).join('\n');
+                        responseText = `📊 Estado del agente ${agentName}:\n\n🟢 **Tareas activas (${activeRuns.length}):**\n${activeList}\n\n⏳ **Cola (${queuedRuns.length}):** ${queuedRuns.length} tareas`;
+                    }
+                    else if (queuedRuns.length > 0) {
+                        responseText = `📊 Estado del agente ${agentName}:\n\n⏳ **En cola:** ${queuedRuns.length} tareas\n✅ Sin tareas ejecutándose`;
+                    }
+                    else {
+                        responseText = `📊 Estado del agente ${agentName}:\n\n🟢 **Online** - Sin tareas activas\n💤 Esperando nuevas tareas`;
+                    }
                     break;
-                case 'stop':
-                    responseText = `🛑 Solicitud de parada recibida. El agente ${agentName} está deteniendo sus tareas actuales.`;
+                }
+                case 'stop': {
+                    // Find and stop active runs for this agent
+                    const runs = await prisma.run.findMany({
+                        where: {
+                            source: agentName.toUpperCase(),
+                            status: 'running'
+                        },
+                        orderBy: { startedAt: 'desc' },
+                        take: 10
+                    });
+                    if (runs.length > 0) {
+                        // Mark runs as failed with stop reason
+                        let stoppedCount = 0;
+                        let openclawResults = [];
+                        for (const run of runs) {
+                            await prisma.run.update({
+                                where: { id: run.id },
+                                data: {
+                                    status: 'failed',
+                                    finishReason: 'stop'
+                                }
+                            });
+                            stoppedCount++;
+                            // Try to kill via OpenClaw CLI if run has label
+                            if (run.label) {
+                                try {
+                                    // Try to find and kill subagent by label
+                                    const cmd = `openclaw agent --agent ${agentName} --message "/subagents kill all" --json 2>&1 || true`;
+                                    const result = (0, child_process_1.execSync)(cmd, { timeout: 10000, encoding: 'utf8' });
+                                    openclawResults.push(`OpenClaw: ${result.substring(0, 200)}`);
+                                }
+                                catch (e) {
+                                    openclawResults.push(`OpenClaw: ${e.message?.substring(0, 100) || 'Command sent'}`);
+                                }
+                            }
+                        }
+                        const openclawMsg = openclawResults.length > 0
+                            ? `\n🔄 Señal de parada enviada a OpenClaw.`
+                            : '';
+                        responseText = `🛑 **Solicitud de parada procesada**\n\n⏹️ Se han detenido ${stoppedCount} tarea(s) activa(s) del agente ${agentName}.${openclawMsg}\n\nLas tareas han sido marcadas como detenidas.`;
+                    }
+                    else {
+                        responseText = `🛑 **Solicitud de parada**\n\nEl agente ${agentName} no tiene tareas activas en ejecución.\n✅ Sistema limpio`;
+                    }
                     break;
+                }
                 default:
                     responseText = personalizedResponse || `📬 Mensaje recibido por ${agentName}. ¿Cómo puedo ayudarte?`;
             }
@@ -764,8 +840,8 @@ server.post('/api/inbox/:threadId/ping', async (request, reply) => {
             // Save agent response
             await prisma.$executeRaw `
         INSERT INTO "InboxMessage" (id, "threadId", "from", text, type, "createdAt")
-        VALUES ($1, $2, $3, $4, $5, $6)
-      `, [responseId, threadId, 'agent', responseText, 'message', responseTime];
+        VALUES (${responseId}, ${threadId}, ${'agent'}, ${responseText}, ${'message'}, ${responseTime})
+      `;
             console.log(`[INBOX] Agent ${agentName} responded to thread ${threadId}`);
         }, agentResponseDelay);
         // 7. Return immediately with success
