@@ -1687,6 +1687,404 @@ function calculateNextRun(cronExpression: string): Date {
   // Default: 1 hour
   return new Date(now.getTime() + 3600000);
 }
+
+
+// =====================================================
+// MDX Control - Dashboard Overview Endpoint
+// =====================================================
+server.get('/api/dashboard/overview', async () => {
+  // Get all agents for calculations
+  const agents = await prisma.agent.findMany();
+  
+  // Calculate tokens (sum of tokensIn24h + tokensOut24h)
+  const totalTokens = agents.reduce((sum, a) => sum + (a.tokensIn24h || 0) + (a.tokensOut24h || 0), 0);
+  
+  // Format tokens: if > 1000, show as "X.Xk"
+  const formatTokens = (tokens: number): string => {
+    if (tokens >= 1000) {
+      return (tokens / 1000).toFixed(1) + 'k';
+    }
+    return tokens.toString();
+  };
+  
+  // Calculate costToday (sum of costDay)
+  const totalCost = agents.reduce((sum, a) => sum + (a.costDay || 0), 0);
+  
+  // Format cost: show as "$X.XX"
+  const formatCost = (cost: number): string => {
+    return '$' + cost.toFixed(2);
+  };
+  
+  // Calculate uptime: average of all agents' uptime
+  const avgUptime = agents.length > 0 
+    ? agents.reduce((sum, a) => sum + (a.uptime || 100), 0) / agents.length 
+    : 100;
+  
+  // Format uptime: show as "XX.XX%"
+  const formatUptime = (uptime: number): string => {
+    return uptime.toFixed(2) + '%';
+  };
+  
+  // Count active agents (status === 'active')
+  const activeAgents = agents.filter(a => a.status === 'active').length;
+  
+  const stats = {
+    tokens: formatTokens(totalTokens),
+    costToday: formatCost(totalCost),
+    uptime: formatUptime(avgUptime),
+    models: `${activeAgents} online`
+  };
+  
+  return { stats };
+});
+
+// =====================================================
+// MDX Control - Missions Endpoints
+// =====================================================
+
+// Helper: Calculate progress based on run status and metrics
+function calculateProgress(run: any): number {
+  if (!run) return 0;
+  
+  switch (run.status) {
+    case 'finished':
+      return 100;
+    case 'failed':
+      // Failed runs show 0% or could show partial progress
+      return 0;
+    case 'running':
+      // Running runs show 50% or calculate based on token usage vs estimated
+      const tokenProgress = run.tokensIn && run.tokensOut 
+        ? Math.min(90, Math.round(((run.tokensIn + run.tokensOut) / 10000) * 100))
+        : 50;
+      return tokenProgress;
+    case 'queued':
+    default:
+      return 0;
+  }
+}
+
+// Helper: Get priority based on run source and tokens
+function getPriority(run: any): string {
+  if (run.source === 'MAIN') return 'high';
+  if (run.tokensIn + run.tokensOut > 10000) return 'high';
+  if (run.tokensIn + run.tokensOut > 5000) return 'medium';
+  return 'low';
+}
+
+// Get all missions - creates missions from real runs if table is empty
+server.get('/api/missions', async () => {
+  // First, try to get existing missions from the Mission table
+  const existingMissions = await prisma.mission.findMany({
+    orderBy: { createdAt: 'desc' }
+  });
+  
+  // If we have real missions in the table, return them with calculated progress
+  if (existingMissions.length > 0) {
+    // Get runs to calculate progress for missions linked to runs
+    const runs = await prisma.run.findMany({
+      orderBy: { startedAt: 'desc' },
+      take: 100
+    });
+    
+    const runMap = new Map(runs.map(r => [r.id, r]));
+    
+    return existingMissions.map(m => {
+      const config = m.config as any;
+      const linkedRunId = config?.runId;
+      const linkedRun = linkedRunId ? runMap.get(linkedRunId) : null;
+      
+      // Calculate real progress
+      const progress = linkedRun 
+        ? calculateProgress(linkedRun)
+        : (config?.progress ?? (m.status === 'completed' ? 100 : m.status === 'active' ? 50 : 0));
+      
+      return {
+        id: m.id,
+        name: m.name,
+        description: m.description,
+        status: m.status,
+        priority: m.priority,
+        owner: m.owner,
+        progress,
+        config: {
+          ...config,
+          progress,
+          tokensIn: linkedRun?.tokensIn || config?.tokensIn || 0,
+          tokensOut: linkedRun?.tokensOut || config?.tokensOut || 0,
+          model: linkedRun?.model || config?.model,
+          runStatus: linkedRun?.status || config?.runStatus
+        },
+        createdAt: m.createdAt.getTime(),
+        updatedAt: m.updatedAt.getTime()
+      };
+    });
+  }
+  
+  // If no missions in table, create virtual missions from real runs
+  const runs = await prisma.run.findMany({
+    orderBy: { startedAt: 'desc' },
+    take: 50
+  });
+  
+  // Also get sessions for additional context
+  const sessions = await prisma.session.findMany({
+    orderBy: { lastSeenAt: 'desc' },
+    take: 20
+  });
+  
+  // Create missions from runs
+  const runMissions = runs.map((run, index) => {
+    const progress = calculateProgress(run);
+    const priority = getPriority(run);
+    
+    // Map run status to mission status
+    let missionStatus = 'pending';
+    if (run.status === 'finished') missionStatus = 'completed';
+    else if (run.status === 'running') missionStatus = 'active';
+    else if (run.status === 'failed') missionStatus = 'paused';
+    else if (run.status === 'queued') missionStatus = 'pending';
+    
+    return {
+      id: `mission_run_${run.id}`,
+      name: run.label || `Run ${run.source} - ${run.model}`,
+      description: `Agent execution: ${run.source} using ${run.model}`,
+      status: missionStatus,
+      priority,
+      owner: run.source === 'MAIN' ? 'Main Agent' : run.source === 'SUBAGENT' ? 'Sub-Agent' : 'System',
+      progress,
+      config: {
+        runId: run.id,
+        source: run.source,
+        model: run.model,
+        tokensIn: run.tokensIn,
+        tokensOut: run.tokensOut,
+        duration: run.duration,
+        contextPct: run.contextPct,
+        runStatus: run.status,
+        finishReason: run.finishReason,
+        progress
+      },
+      createdAt: run.startedAt.getTime(),
+      updatedAt: run.startedAt.getTime()
+    };
+  });
+  
+  // Create missions from active sessions
+  const sessionMissions = sessions
+    .filter(s => s.status === 'active')
+    .slice(0, 5)
+    .map((session, index) => ({
+      id: `mission_session_${session.id}`,
+      name: `Session: ${session.agentName}`,
+      description: `Active session with ${session.model}`,
+      status: 'active',
+      priority: 'medium',
+      owner: session.agentName,
+      progress: Math.min(95, Math.round((session.tokens24h / 50000) * 100)) || 25,
+      config: {
+        sessionId: session.id,
+        model: session.model,
+        tokens24h: session.tokens24h,
+        progress: Math.min(95, Math.round((session.tokens24h / 50000) * 100)) || 25
+      },
+      createdAt: session.startedAt.getTime(),
+      updatedAt: session.lastSeenAt.getTime()
+    }));
+  
+  // Combine and return
+  return [...runMissions, ...sessionMissions];
+});
+
+// Get mission by ID
+server.get('/api/missions/:id', async (request: FastifyRequest<{ Params: { id: string } }>, reply) => {
+  const { id } = request.params;
+  
+  const mission = await prisma.mission.findUnique({ where: { id } });
+  
+  if (!mission) {
+    reply.code(404);
+    return { error: 'Mission not found' };
+  }
+  
+  return {
+    id: mission.id,
+    name: mission.name,
+    description: mission.description,
+    status: mission.status,
+    priority: mission.priority,
+    owner: mission.owner,
+    config: mission.config,
+    createdAt: mission.createdAt.getTime(),
+    updatedAt: mission.updatedAt.getTime()
+  };
+});
+
+// Create new mission
+server.post('/api/missions', async (request, reply) => {
+  const body = request.body as any;
+  
+  const newMission = await prisma.mission.create({
+    data: {
+      id: 'mission_' + Date.now(),
+      name: body?.name || 'New Mission',
+      description: body?.description || '',
+      status: body?.status || 'pending',
+      priority: body?.priority || 'medium',
+      owner: body?.owner || 'Admin',
+      config: body?.config || {}
+    }
+  });
+  
+  return reply.code(201).send({
+    id: newMission.id,
+    name: newMission.name,
+    description: newMission.description,
+    status: newMission.status,
+    priority: newMission.priority,
+    owner: newMission.owner,
+    config: newMission.config,
+    createdAt: newMission.createdAt.getTime(),
+    updatedAt: newMission.updatedAt.getTime()
+  });
+});
+
+// Update mission
+server.patch('/api/missions/:id', async (request: FastifyRequest<{ Params: { id: string } }>, reply) => {
+  const { id } = request.params;
+  const body = request.body as any;
+  
+  // Verify mission exists
+  const existingMission = await prisma.mission.findUnique({ where: { id } });
+  if (!existingMission) {
+    reply.code(404);
+    return { error: 'Mission not found' };
+  }
+  
+  const updatedMission = await prisma.mission.update({
+    where: { id },
+    data: {
+      ...(body?.name !== undefined && { name: body.name }),
+      ...(body?.description !== undefined && { description: body.description }),
+      ...(body?.status !== undefined && { status: body.status }),
+      ...(body?.priority !== undefined && { priority: body.priority }),
+      ...(body?.owner !== undefined && { owner: body.owner }),
+      ...(body?.config !== undefined && { config: body.config }),
+      updatedAt: new Date()
+    }
+  });
+  
+  return {
+    id: updatedMission.id,
+    name: updatedMission.name,
+    description: updatedMission.description,
+    status: updatedMission.status,
+    priority: updatedMission.priority,
+    owner: updatedMission.owner,
+    config: updatedMission.config,
+    createdAt: updatedMission.createdAt.getTime(),
+    updatedAt: updatedMission.updatedAt.getTime()
+  };
+});
+
+// =====================================================
+// MDX Control - Activity Feed Endpoint
+// =====================================================
+server.get('/api/activity', async () => {
+  // Get real runs with detailed info
+  const runs = await prisma.run.findMany({
+    orderBy: { startedAt: 'desc' },
+    take: 50
+  });
+  
+  // Get sessions for additional activity context
+  const sessions = await prisma.session.findMany({
+    orderBy: { lastSeenAt: 'desc' },
+    take: 20
+  });
+  
+  // Get agents for context
+  const agents = await prisma.agent.findMany({
+    where: { status: 'active' }
+  });
+  
+  // Map runs to activity feed with descriptive messages
+  const runActivities = runs.map(r => {
+    let message = '';
+    let type = 'run';
+    
+    switch (r.status) {
+      case 'finished':
+        message = `✅ ${r.source} completed "${r.label}"`;
+        if (r.tokensOut > 0) {
+          message += ` · ${r.tokensOut.toLocaleString()} tokens`;
+        }
+        if (r.duration) {
+          message += ` · ${(r.duration / 1000).toFixed(1)}s`;
+        }
+        break;
+      case 'running':
+        message = `🔄 ${r.source} running "${r.label}"`;
+        if (r.model) {
+          message += ` · ${r.model}`;
+        }
+        break;
+      case 'failed':
+        message = `❌ ${r.source} failed on "${r.label}"`;
+        if (r.finishReason) {
+          message += ` · ${r.finishReason}`;
+        }
+        break;
+      case 'queued':
+        message = `⏳ ${r.source} queued "${r.label}"`;
+        break;
+      default:
+        message = `${r.source} · ${r.label} (${r.status})`;
+    }
+    
+    return {
+      id: r.id,
+      type,
+      message,
+      status: r.status,
+      model: r.model,
+      source: r.source,
+      label: r.label,
+      tokensIn: r.tokensIn,
+      tokensOut: r.tokensOut,
+      timestamp: r.startedAt.getTime(),
+      duration: r.duration,
+      finishReason: r.finishReason
+    };
+  });
+  
+  // Map sessions to activity
+  const sessionActivities = sessions.map(s => {
+    const isActive = s.status === 'active';
+    return {
+      id: s.id,
+      type: 'session',
+      message: isActive 
+        ? `🟢 ${s.agentName} session active · ${s.tokens24h.toLocaleString()} tokens`
+        : `⚪ ${s.agentName} session ${s.status}`,
+      status: s.status,
+      model: s.model,
+      source: s.agentName,
+      agent: s.agentName,
+      tokens24h: s.tokens24h,
+      timestamp: s.lastSeenAt.getTime()
+    };
+  });
+  
+  // Combine and sort by timestamp
+  const allActivities = [...runActivities, ...sessionActivities]
+    .sort((a, b) => b.timestamp - a.timestamp)
+    .slice(0, 50);
+  
+  return allActivities;
+});
+
+// =====================================================
 // WebSocket Support for Real-time Events
 // =====================================================
 
