@@ -1017,25 +1017,46 @@ function calculateNextRun(cronExpression: string): Date {
 // MDX Control - Dashboard Overview Endpoint
 // =====================================================
 server.get('/api/dashboard/overview', async () => {
-  // Get agent stats for calculations
+  // Get all agents for calculations
   const agents = await prisma.agent.findMany();
-  const totalAgents = agents.length;
+  
+  // Calculate tokens (sum of tokensIn24h + tokensOut24h)
+  const totalTokens = agents.reduce((sum, a) => sum + (a.tokensIn24h || 0) + (a.tokensOut24h || 0), 0);
+  
+  // Format tokens: if > 1000, show as "X.Xk"
+  const formatTokens = (tokens: number): string => {
+    if (tokens >= 1000) {
+      return (tokens / 1000).toFixed(1) + 'k';
+    }
+    return tokens.toString();
+  };
+  
+  // Calculate costToday (sum of costDay)
+  const totalCost = agents.reduce((sum, a) => sum + (a.costDay || 0), 0);
+  
+  // Format cost: show as "$X.XX"
+  const formatCost = (cost: number): string => {
+    return '$' + cost.toFixed(2);
+  };
+  
+  // Calculate uptime: average of all agents' uptime
+  const avgUptime = agents.length > 0 
+    ? agents.reduce((sum, a) => sum + (a.uptime || 100), 0) / agents.length 
+    : 100;
+  
+  // Format uptime: show as "XX.XX%"
+  const formatUptime = (uptime: number): string => {
+    return uptime.toFixed(2) + '%';
+  };
+  
+  // Count active agents (status === 'active')
   const activeAgents = agents.filter(a => a.status === 'active').length;
   
-  // Get recent runs for activity
-  const recentRuns = await prisma.run.findMany({
-    orderBy: { startedAt: 'desc' },
-    take: 50
-  });
-  
-  // Calculate mock stats (replace with real data sources later)
   const stats = {
-    leads: 128,  // From Notion integration (mock for now)
-    conversion: '12.4%',  // Calculated from leads/deals
-    missions: 0,  // Will be implemented with missions table
-    agents: totalAgents,
-    activeAgents: activeAgents,
-    recentRuns: recentRuns.length
+    tokens: formatTokens(totalTokens),
+    costToday: formatCost(totalCost),
+    uptime: formatUptime(avgUptime),
+    models: `${activeAgents} online`
   };
   
   return { stats };
