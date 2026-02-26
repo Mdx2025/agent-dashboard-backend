@@ -8,14 +8,21 @@ import path from 'path';
 const server = Fastify({ logger: true });
 const prisma = new PrismaClient();
 
-// BrainX PostgreSQL connection
+// BrainX PostgreSQL connection - Lazy initialization
 import pkg from 'pg';
 const { Pool } = pkg;
 
-const brainxPool = new Pool({
-  connectionString: process.env.BRAINX_DATABASE_URL || 'postgresql://brainx:qlXjMcmpvjd4iS+eaf8TUDPBSTGfkEKoetlQTQW3eq0=@127.0.0.1:5432/brainx_v3',
-  ssl: false,
-});
+let brainxPool: any = null;
+
+function getBrainXPool() {
+  if (!brainxPool) {
+    brainxPool = new Pool({
+      connectionString: process.env.BRAINX_DATABASE_URL || 'postgresql://brainx:qlXjMcmpvjd4iS+eaf8TUDPBSTGfkEKoetlQTQW3eq0=@127.0.0.1:5432/brainx_v3',
+      ssl: false,
+    });
+  }
+  return brainxPool;
+}
 
 server.register(cors, { origin: true });
 
@@ -1323,8 +1330,8 @@ console.log('✅ Dashboard fixes loaded: Token Usage (Agent data), Auto-logging,
 // GET /api/brainx/health - Check BrainX database connection
 server.get('/api/brainx/health', async () => {
   try {
-    const result = await brainxPool.query('SELECT 1 as test');
-    const memCount = await brainxPool.query('SELECT COUNT(*) as count FROM brainx_memories');
+    const result = await getBrainXPool().query('SELECT 1 as test');
+    const memCount = await getBrainXPool().query('SELECT COUNT(*) as count FROM brainx_memories');
     return {
       status: 'connected',
       database: 'brainx_v3',
@@ -1345,56 +1352,56 @@ server.get('/api/brainx/health', async () => {
 server.get('/api/brainx/stats', async () => {
   try {
     // Total memories
-    const totalResult = await brainxPool.query('SELECT COUNT(*) as total FROM brainx_memories');
+    const totalResult = await getBrainXPool().query('SELECT COUNT(*) as total FROM brainx_memories');
     const totalMemories = parseInt(totalResult.rows[0].total);
 
     // Memories added today
     const todayStart = new Date();
     todayStart.setHours(0, 0, 0, 0);
-    const todayResult = await brainxPool.query(
+    const todayResult = await getBrainXPool().query(
       'SELECT COUNT(*) as count FROM brainx_memories WHERE created_at >= $1',
       [todayStart]
     );
     const todayCount = parseInt(todayResult.rows[0].count);
 
     // By tier
-    const tierResult = await brainxPool.query(
+    const tierResult = await getBrainXPool().query(
       'SELECT tier, COUNT(*) as count FROM brainx_memories GROUP BY tier'
     );
     const byTier = tierResult.rows.map(r => ({ tier: r.tier, count: parseInt(r.count) }));
 
     // By agent
-    const agentResult = await brainxPool.query(
+    const agentResult = await getBrainXPool().query(
       'SELECT agent, COUNT(*) as count FROM brainx_memories WHERE agent IS NOT NULL GROUP BY agent ORDER BY count DESC'
     );
     const byAgent = agentResult.rows.map(r => ({ agent: r.agent, count: parseInt(r.count) }));
 
     // By context/workspace
-    const contextResult = await brainxPool.query(
+    const contextResult = await getBrainXPool().query(
       'SELECT context, COUNT(*) as count FROM brainx_memories WHERE context IS NOT NULL GROUP BY context ORDER BY count DESC LIMIT 10'
     );
     const byContext = contextResult.rows.map(r => ({ context: r.context, count: parseInt(r.count) }));
 
     // By type
-    const typeResult = await brainxPool.query(
+    const typeResult = await getBrainXPool().query(
       'SELECT type, COUNT(*) as count FROM brainx_memories GROUP BY type'
     );
     const byType = typeResult.rows.map(r => ({ type: r.type, count: parseInt(r.count) }));
 
     // By status
-    const statusResult = await brainxPool.query(
+    const statusResult = await getBrainXPool().query(
       'SELECT status, COUNT(*) as count FROM brainx_memories GROUP BY status'
     );
     const byStatus = statusResult.rows.map(r => ({ status: r.status, count: parseInt(r.count) }));
 
     // Calculate approximate database size (based on row count and avg size)
-    const avgSizeResult = await brainxPool.query(
+    const avgSizeResult = await getBrainXPool().query(
       'SELECT pg_total_relation_size(\'brainx_memories\') as size'
     );
     const dbSize = parseInt(avgSizeResult.rows[0].size) || 0;
 
     // Active memories (hot + warm)
-    const activeResult = await brainxPool.query(
+    const activeResult = await getBrainXPool().query(
       "SELECT COUNT(*) as count FROM brainx_memories WHERE tier IN ('hot', 'warm')"
     );
     const activeMemories = parseInt(activeResult.rows[0].count);
@@ -1462,14 +1469,14 @@ server.get('/api/brainx/memories', async (request) => {
 
     // Get total count
     const countQuery = query.replace('SELECT *', 'SELECT COUNT(*) as total');
-    const countResult = await brainxPool.query(countQuery, params);
+    const countResult = await getBrainXPool().query(countQuery, params);
     const total = parseInt(countResult.rows[0].total);
 
     // Get paginated results
     query += ' ORDER BY created_at DESC LIMIT $' + paramIndex + ' OFFSET $' + (paramIndex + 1);
     params.push(Math.min(Number(limit), 100), Number(offset));
 
-    const result = await brainxPool.query(query, params);
+    const result = await getBrainXPool().query(query, params);
 
     return {
       memories: result.rows.map(m => ({
@@ -1538,7 +1545,7 @@ server.post('/api/brainx/search', async (request) => {
       sql += ` ORDER BY importance DESC, created_at DESC LIMIT $${paramIndex}`;
       params.push(Number(limit));
 
-      const result = await brainxPool.query(sql, params);
+      const result = await getBrainXPool().query(sql, params);
 
       return {
         query,
@@ -1614,11 +1621,11 @@ server.post('/api/brainx/search', async (request) => {
     sql += ` ORDER BY similarity ASC LIMIT $${paramIndex}`;
     params.push(Number(limit));
 
-    const result = await brainxPool.query(sql, params);
+    const result = await getBrainXPool().query(sql, params);
 
     // Log the query
     try {
-      await brainxPool.query(
+      await getBrainXPool().query(
         'INSERT INTO brainx_query_log (id, query, results_count, similarity_threshold, created_at) VALUES ($1, $2, $3, $4, NOW())',
         [`query_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`, query, result.rows.length, minSimilarity]
       );
@@ -1650,7 +1657,7 @@ server.post('/api/brainx/search', async (request) => {
 // GET /api/brainx/workspaces - List all workspaces/contexts
 server.get('/api/brainx/workspaces', async () => {
   try {
-    const result = await brainxPool.query(`
+    const result = await getBrainXPool().query(`
       SELECT context, 
              COUNT(*) as memory_count,
              MAX(created_at) as last_memory,
@@ -1679,7 +1686,7 @@ server.get('/api/brainx/workspaces', async () => {
 server.get('/api/brainx/activity', async () => {
   try {
     // Recent memories added
-    const memoriesResult = await brainxPool.query(`
+    const memoriesResult = await getBrainXPool().query(`
       SELECT id, type, content, agent, context, created_at
       FROM brainx_memories 
       ORDER BY created_at DESC 
@@ -1689,7 +1696,7 @@ server.get('/api/brainx/activity', async () => {
     // Query log (recent searches)
     let queryLogResult;
     try {
-      queryLogResult = await brainxPool.query(`
+      queryLogResult = await getBrainXPool().query(`
         SELECT query, results_count, created_at
         FROM brainx_query_log 
         ORDER BY created_at DESC 
@@ -1700,7 +1707,7 @@ server.get('/api/brainx/activity', async () => {
     }
 
     // Activity summary
-    const summaryResult = await brainxPool.query(`
+    const summaryResult = await getBrainXPool().query(`
       SELECT 
         (SELECT COUNT(*) FROM brainx_memories WHERE created_at >= NOW() - INTERVAL '1 hour') as last_hour,
         (SELECT COUNT(*) FROM brainx_memories WHERE created_at >= NOW() - INTERVAL '24 hours') as last_24h,
@@ -1740,7 +1747,7 @@ server.get('/api/brainx/insights', async () => {
     // Most queried topics (from query log)
     let topQueries: { query: string; count: number; avgResults: number }[] = [];
     try {
-      const queryResult = await brainxPool.query(`
+      const queryResult = await getBrainXPool().query(`
         SELECT query, COUNT(*) as count, AVG(results_count) as avg_results
         FROM brainx_query_log 
         WHERE created_at >= NOW() - INTERVAL '7 days'
@@ -1758,7 +1765,7 @@ server.get('/api/brainx/insights', async () => {
     }
 
     // Most active workspaces
-    const workspaceResult = await brainxPool.query(`
+    const workspaceResult = await getBrainXPool().query(`
       SELECT context, COUNT(*) as memory_count, MAX(created_at) as last_activity
       FROM brainx_memories 
       WHERE context IS NOT NULL 
@@ -1769,13 +1776,13 @@ server.get('/api/brainx/insights', async () => {
     `);
 
     // Embeddings below threshold (low similarity scores)
-    const lowQualityResult = await brainxPool.query(`
+    const lowQualityResult = await getBrainXPool().query(`
       SELECT COUNT(*) as count FROM brainx_memories 
       WHERE embedding IS NULL OR importance < 3
     `);
 
     // Recently indexed workspaces
-    const recentIndexResult = await brainxPool.query(`
+    const recentIndexResult = await getBrainXPool().query(`
       SELECT context, MAX(created_at) as indexed_at
       FROM brainx_memories 
       WHERE context IS NOT NULL 
@@ -1854,7 +1861,7 @@ server.post('/api/brainx/inject', async (request) => {
     sql += ` ORDER BY similarity ASC LIMIT $${paramIndex}`;
     params.push(Number(limit));
 
-    const result = await brainxPool.query(sql, params);
+    const result = await getBrainXPool().query(sql, params);
 
     // Format for injection
     const injectedMemories = result.rows.map(m => {
