@@ -936,6 +936,103 @@ function calculateNextRun(cronExpression: string): Date {
 
 
 // =====================================================
+// MDX Control - Dashboard Overview Endpoint
+// =====================================================
+server.get('/api/dashboard/overview', async () => {
+  // Get agent stats for calculations
+  const agents = await prisma.agent.findMany();
+  const totalAgents = agents.length;
+  const activeAgents = agents.filter(a => a.status === 'active').length;
+  
+  // Get recent runs for activity
+  const recentRuns = await prisma.run.findMany({
+    orderBy: { startedAt: 'desc' },
+    take: 50
+  });
+  
+  // Calculate mock stats (replace with real data sources later)
+  const stats = {
+    leads: 128,  // From Notion integration (mock for now)
+    conversion: '12.4%',  // Calculated from leads/deals
+    missions: 0,  // Will be implemented with missions table
+    agents: totalAgents,
+    activeAgents: activeAgents,
+    recentRuns: recentRuns.length
+  };
+  
+  return { stats };
+});
+
+// =====================================================
+// MDX Control - Missions Endpoints
+// =====================================================
+
+// Get all missions (mock - will connect to DB later)
+server.get('/api/missions', async () => {
+  // Return empty array for now - missions table not yet created
+  return [];
+});
+
+// Create new mission
+server.post('/api/missions', async (request, reply) => {
+  const body = request.body as any;
+  
+  // Mock response - will implement DB storage later
+  const newMission = {
+    id: `mission_${Date.now()}`,
+    name: body?.name || 'New Mission',
+    description: body?.description || '',
+    status: 'pending',
+    owner: body?.owner || 'Admin',
+    priority: body?.priority || 'medium',
+    createdAt: Date.now(),
+    updatedAt: Date.now()
+  };
+  
+  return reply.code(201).send(newMission);
+});
+
+// Update mission
+server.patch('/api/missions/:id', async (request, reply) => {
+  const { id } = request.params as any;
+  const body = request.body as any;
+  
+  // Mock response - will implement DB storage later
+  const updatedMission = {
+    id,
+    name: body?.name || 'Updated Mission',
+    status: body?.status || 'active',
+    owner: body?.owner || 'Admin',
+    updatedAt: Date.now()
+  };
+  
+  return updatedMission;
+});
+
+// =====================================================
+// MDX Control - Activity Feed Endpoint
+// =====================================================
+server.get('/api/activity', async () => {
+  // Map runs to activity feed format
+  const runs = await prisma.run.findMany({
+    orderBy: { startedAt: 'desc' },
+    take: 50
+  });
+  
+  return runs.map(r => ({
+    id: r.id,
+    type: 'run',
+    message: `${r.source} - ${r.label || 'Run'} (${r.status})`,
+    status: r.status,
+    model: r.model,
+    tokensIn: r.tokensIn,
+    tokensOut: r.tokensOut,
+    timestamp: r.startedAt.getTime(),
+    duration: r.duration
+  }));
+});
+
+// =====================================================
 // WebSocket Support for Real-time Events
 // =====================================================
 
