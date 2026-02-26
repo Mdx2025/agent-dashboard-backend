@@ -265,3 +265,16 @@ model Memory {
   sessionId   String?
   createdAt   DateTime @default(now())
 }
+
+// Mission Management
+model Mission {
+  id          String   @id
+  name        String
+  description String?
+  status      String   @default("pending")
+  priority    String   @default("medium")
+  owner       String   @default("Admin")
+  config      Json     @default("{}")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}

@@ -115,6 +115,71 @@ server.get('/api/agents', async () => {
   }));
 });
 
+// Get agent by ID
+server.get('/api/agents/:id', async (request: FastifyRequest<{ Params: { id: string } }>, reply) => {
+  const { id } = request.params;
+  
+  const agent = await prisma.agent.findUnique({ where: { id } });
+  
+  if (!agent) {
+    reply.code(404);
+    return { error: 'Agent not found' };
+  }
+  
+  return {
+    id: agent.id,
+    name: agent.name,
+    status: agent.status,
+    type: agent.type,
+    provider: agent.provider,
+    model: agent.model,
+    description: agent.description,
+    runs24h: agent.runs24h,
+    err24h: agent.err24h,
+    costDay: agent.costDay,
+    runsAll: agent.runsAll,
+    tokensIn24h: agent.tokensIn24h,
+    tokensOut24h: agent.tokensOut24h,
+    costAll: agent.costAll,
+    latencyAvg: agent.latencyAvg,
+    uptime: agent.uptime,
+  };
+});
+
+// Get logs for a specific agent
+server.get('/api/agents/:id/logs', async (request: FastifyRequest<{ Params: { id: string } }>, reply) => {
+  const { id } = request.params;
+  
+  // Verify agent exists
+  const agent = await prisma.agent.findUnique({ where: { id } });
+  if (!agent) {
+    reply.code(404);
+    return { error: 'Agent not found' };
+  }
+  
+  // Get logs where source contains agentId or extra metadata contains agentId
+  const logs = await prisma.logEntry.findMany({
+    where: {
+      OR: [
+        { source: { contains: id, mode: 'insensitive' } },
+        { extra: { path: ['agentId'], equals: id } },
+        { message: { contains: id, mode: 'insensitive' } }
+      ]
+    },
+    orderBy: { timestamp: 'desc' },
+    take: 100
+  });
+  
+  return logs.map(l => ({
+    id: l.id,
+    timestamp: l.timestamp.getTime(),
+    level: l.level,
+    source: l.source,
+    message: l.message,
+    extra: l.extra
+  }));
+});
+
 // Get all sessions
 server.get('/api/sessions', async () => {
   const sessions = await prisma.session.findMany({
@@ -597,6 +662,19 @@ server.listen({ port: Number(PORT), host: '0.0.0.0' }, async (err, address) => {
     await prisma.$executeRaw`CREATE TABLE IF NOT EXISTS "Service" (id TEXT PRIMARY KEY, name TEXT UNIQUE NOT NULL, status TEXT NOT NULL DEFAULT 'healthy', host TEXT, port INTEGER, "latencyMs" INTEGER DEFAULT 0, "cpuPct" DOUBLE PRECISION DEFAULT 0, "memPct" DOUBLE PRECISION DEFAULT 0, version TEXT, metadata JSONB DEFAULT '{}', "createdAt" TIMESTAMP DEFAULT NOW(), "updatedAt" TIMESTAMP DEFAULT NOW())`;
     await prisma.$executeRaw`CREATE TABLE IF NOT EXISTS "LogEntry" (id TEXT PRIMARY KEY, timestamp TIMESTAMP DEFAULT NOW(), level TEXT NOT NULL, source TEXT NOT NULL, message TEXT NOT NULL, "runId" TEXT, "requestId" TEXT, extra JSONB)`;
     
+    // Create Mission table if not exists
+    await prisma.$executeRaw`CREATE TABLE IF NOT EXISTS "Mission" (
+      "id" TEXT PRIMARY KEY,
+      "name" TEXT NOT NULL,
+      "description" TEXT,
+      "status" TEXT NOT NULL DEFAULT 'pending',
+      "priority" TEXT NOT NULL DEFAULT 'medium',
+      "owner" TEXT NOT NULL DEFAULT 'Admin',
+      "config" JSONB DEFAULT '{}',
+      "createdAt" TIMESTAMP DEFAULT NOW(),
+      "updatedAt" TIMESTAMP DEFAULT NOW()
+    )`;
+    
     // Add missing columns if table already exists (ignore errors)
     try {
       await prisma.$executeRaw`ALTER TABLE "Agent" ADD COLUMN IF NOT EXISTS tools TEXT[]`;
@@ -967,46 +1045,114 @@ server.get('/api/dashboard/overview', async () => {
 // MDX Control - Missions Endpoints
 // =====================================================
 
-// Get all missions (mock - will connect to DB later)
+// Get all missions
 server.get('/api/missions', async () => {
-  // Return empty array for now - missions table not yet created
-  return [];
+  const missions = await prisma.mission.findMany({
+    orderBy: { createdAt: 'desc' }
+  });
+  
+  return missions.map(m => ({
+    id: m.id,
+    name: m.name,
+    description: m.description,
+    status: m.status,
+    priority: m.priority,
+    owner: m.owner,
+    config: m.config,
+    createdAt: m.createdAt.getTime(),
+    updatedAt: m.updatedAt.getTime()
+  }));
+});
+
+// Get mission by ID
+server.get('/api/missions/:id', async (request: FastifyRequest<{ Params: { id: string } }>, reply) => {
+  const { id } = request.params;
+  
+  const mission = await prisma.mission.findUnique({ where: { id } });
+  
+  if (!mission) {
+    reply.code(404);
+    return { error: 'Mission not found' };
+  }
+  
+  return {
+    id: mission.id,
+    name: mission.name,
+    description: mission.description,
+    status: mission.status,
+    priority: mission.priority,
+    owner: mission.owner,
+    config: mission.config,
+    createdAt: mission.createdAt.getTime(),
+    updatedAt: mission.updatedAt.getTime()
+  };
 });
 
 // Create new mission
 server.post('/api/missions', async (request, reply) => {
   const body = request.body as any;
   
-  // Mock response - will implement DB storage later
-  const newMission = {
-    id: `mission_${Date.now()}`,
-    name: body?.name || 'New Mission',
-    description: body?.description || '',
-    status: 'pending',
-    owner: body?.owner || 'Admin',
-    priority: body?.priority || 'medium',
-    createdAt: Date.now(),
-    updatedAt: Date.now()
-  };
+  const newMission = await prisma.mission.create({
+    data: {
+      id: 'mission_' + Date.now(),
+      name: body?.name || 'New Mission',
+      description: body?.description || '',
+      status: body?.status || 'pending',
+      priority: body?.priority || 'medium',
+      owner: body?.owner || 'Admin',
+      config: body?.config || {}
+    }
+  });
   
-  return reply.code(201).send(newMission);
+  return reply.code(201).send({
+    id: newMission.id,
+    name: newMission.name,
+    description: newMission.description,
+    status: newMission.status,
+    priority: newMission.priority,
+    owner: newMission.owner,
+    config: newMission.config,
+    createdAt: newMission.createdAt.getTime(),
+    updatedAt: newMission.updatedAt.getTime()
+  });
 });
 
 // Update mission
-server.patch('/api/missions/:id', async (request, reply) => {
-  const { id } = request.params as any;
+server.patch('/api/missions/:id', async (request: FastifyRequest<{ Params: { id: string } }>, reply) => {
+  const { id } = request.params;
   const body = request.body as any;
   
-  // Mock response - will implement DB storage later
-  const updatedMission = {
-    id,
-    name: body?.name || 'Updated Mission',
-    status: body?.status || 'active',
-    owner: body?.owner || 'Admin',
-    updatedAt: Date.now()
-  };
+  // Verify mission exists
+  const existingMission = await prisma.mission.findUnique({ where: { id } });
+  if (!existingMission) {
+    reply.code(404);
+    return { error: 'Mission not found' };
+  }
   
-  return updatedMission;
+  const updatedMission = await prisma.mission.update({
+    where: { id },
+    data: {
+      ...(body?.name !== undefined && { name: body.name }),
+      ...(body?.description !== undefined && { description: body.description }),
+      ...(body?.status !== undefined && { status: body.status }),
+      ...(body?.priority !== undefined && { priority: body.priority }),
+      ...(body?.owner !== undefined && { owner: body.owner }),
+      ...(body?.config !== undefined && { config: body.config }),
+      updatedAt: new Date()
+    }
+  });
+  
+  return {
+    id: updatedMission.id,
+    name: updatedMission.name,
+    description: updatedMission.description,
+    status: updatedMission.status,
+    priority: updatedMission.priority,
+    owner: updatedMission.owner,
+    config: updatedMission.config,
+    createdAt: updatedMission.createdAt.getTime(),
+    updatedAt: updatedMission.updatedAt.getTime()
+  };
 });
 
 // =====================================================
