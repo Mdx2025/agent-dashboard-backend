@@ -1676,7 +1676,7 @@ server.post('/api/brainx/search', async (request) => {
       WHERE embedding IS NOT NULL
         AND (embedding <=> $1::vector) < $2
     `;
-    const params: any[] = = [JSON.stringify(embedding), 1 - minSimilarity];
+    const params: any[] = [JSON.stringify(embedding), 1 - minSimilarity];
     let paramIndex = 3;
 
     if (type) {
