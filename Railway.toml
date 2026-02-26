@@ -1,4 +1,5 @@
 # Railway.toml configuration for the backend API
+# Updated: 2026-02-26 - Force rebuild
 
 [build]
 builder = "NIXPACKS"
