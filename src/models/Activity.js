@@ -20,7 +20,7 @@ const Activity = sequelize.define('Activity', {
     defaultValue: '🤖'
   },
   type: {
-    type: DataTypes.ENUM('task', 'deploy', 'error', 'info', 'approval', 'mission', 'system'),
+    type: DataTypes.ENUM('task', 'deploy', 'error', 'info', 'approval', 'mission', 'system', 'message', 'run'),
     defaultValue: 'info'
   },
   action: {
