@@ -9,7 +9,8 @@
     "dev": "node --watch src/server-backend.js",
     "start:frontend": "node server.js",
     "etl:openclaw": "node src/scripts/etl-openclaw.js",
-    "etl:dry-run": "DRY_RUN=true node src/scripts/etl-openclaw.js"
+    "etl:dry-run": "DRY_RUN=true node src/scripts/etl-openclaw.js",
+    "etl:simple": "node src/scripts/etl-simple.js"
   },
   "dependencies": {
     "cors": "^2.8.5",
