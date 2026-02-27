@@ -3,6 +3,12 @@ import { Op } from 'sequelize';
 
 const router = express.Router();
 
+// Helper to get column names based on model config
+function getDateColumn(model, column = 'created') {
+  // Use underscored column names
+  return column === 'created' ? 'created_at' : 'updated_at';
+}
+
 // GET /api/brainx/stats - Stats para el dashboard
 router.get('/stats', async (req, res) => {
   try {
@@ -12,10 +18,15 @@ router.get('/stats', async (req, res) => {
     const embeddings = await BrainXMemory.count();
     
     // Get unique workspaces
-    const workspaces = await BrainXMemory.aggregate('workspace', 'count', {
-      distinct: true,
-      where: { workspace: { [Op.ne]: null } }
-    });
+    let workspaces = 1;
+    try {
+      const [result] = await sequelize.query(
+        'SELECT COUNT(DISTINCT workspace) as count FROM brainx_memories WHERE workspace IS NOT NULL'
+      );
+      workspaces = parseInt(result[0]?.count) || 1;
+    } catch (e) {
+      console.log('Could not get workspace count:', e.message);
+    }
     
     // Get database size (PostgreSQL specific)
     let dbSize = 'Unknown';
@@ -28,17 +39,23 @@ router.get('/stats', async (req, res) => {
       console.log('Could not get DB size:', e.message);
     }
     
-    // Get queued pruning count (memories older than 30 days without access)
-    const thirtyDaysAgo = new Date();
-    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-    const queuedPruning = await BrainXMemory.count({
-      where: {
-        updatedAt: { [Op.lt]: thirtyDaysAgo }
-      }
-    });
+    // Get queued pruning count
+    let queuedPruning = 0;
+    try {
+      const thirtyDaysAgo = new Date();
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+      
+      const [result] = await sequelize.query(
+        'SELECT COUNT(*) as count FROM brainx_memories WHERE created_at < $1',
+        { bind: [thirtyDaysAgo] }
+      );
+      queuedPruning = parseInt(result[0]?.count) || 0;
+    } catch (e) {
+      console.log('Could not get pruning count:', e.message);
+    }
     
-    // Calculate average query latency (mock - would be real metrics in production)
-    const latency = Math.floor(Math.random() * 100) + 150; // 150-250ms
+    // Calculate average query latency (mock)
+    const latency = Math.floor(Math.random() * 100) + 150;
     
     res.json({
       embeddings,
@@ -57,28 +74,29 @@ router.get('/stats', async (req, res) => {
 // GET /api/brainx/search?q=query - Búsqueda semántica
 router.get('/search', async (req, res) => {
   try {
-    const { BrainXMemory } = req.app.get('models');
+    const { BrainXMemory, sequelize } = req.app.get('models');
     const { q: query, workspace, limit = 10 } = req.query;
     
     if (!query) {
       return res.status(400).json({ error: 'Query parameter "q" is required' });
     }
     
-    const where = {};
-    if (workspace) where.workspace = workspace;
+    // Build query with raw SQL for compatibility
+    let sql = 'SELECT * FROM brainx_memories WHERE content ILIKE $1';
+    const params = [`%${query}%`];
     
-    // Simple text search (in production would use vector similarity with embeddings)
-    const memories = await BrainXMemory.findAll({
-      where: {
-        ...where,
-        content: { [Op.iLike]: `%${query}%` }
-      },
-      order: [['createdAt', 'DESC']],
-      limit: parseInt(limit) * 2 // Get more to filter by relevance
-    });
+    if (workspace) {
+      sql += ' AND workspace = $2';
+      params.push(workspace);
+    }
+    
+    sql += ' ORDER BY created_at DESC LIMIT $' + (params.length + 1);
+    params.push(parseInt(limit) * 2);
+    
+    const [memories] = await sequelize.query(sql, { bind: params });
     
     // Transform to response format with scores
-    const results = memories.map((m, index) => {
+    const results = memories.map((m) => {
       const contentLower = m.content.toLowerCase();
       const queryLower = query.toLowerCase();
       
@@ -87,11 +105,11 @@ router.get('/search', async (req, res) => {
       if (contentLower.includes(queryLower)) score += 0.3;
       if (contentLower.startsWith(queryLower)) score += 0.2;
       
-      // Extract title from content (first line or first 50 chars)
+      // Extract title from content
       const title = m.content.split('\n')[0].substring(0, 50) || 'Untitled Memory';
       
       // Format date
-      const date = m.createdAt ? m.createdAt.toLocaleDateString('en-US', { 
+      const date = m.created_at ? new Date(m.created_at).toLocaleDateString('en-US', { 
         month: 'short', 
         day: 'numeric' 
       }) : 'Unknown';
@@ -120,7 +138,7 @@ router.get('/search', async (req, res) => {
 // POST /api/brainx/inject - Inyectar nueva memoria
 router.post('/inject', async (req, res) => {
   try {
-    const { BrainXMemory } = req.app.get('models');
+    const { BrainXMemory, sequelize } = req.app.get('models');
     const { content, workspaces = ['default'], category = 'context', metadata = {} } = req.body;
     
     if (!content) {
@@ -129,25 +147,21 @@ router.post('/inject', async (req, res) => {
     
     const memories = [];
     
-    // Create memory for each workspace
+    // Create memory for each workspace using raw SQL for compatibility
     for (const workspace of workspaces) {
-      const memory = await BrainXMemory.create({
-        content,
-        workspace,
-        embedding: null, // Would use OpenAI to generate embedding in production
-        metadata: {
-          ...metadata,
-          category,
-          injectedAt: new Date().toISOString()
-        }
-      });
-      memories.push(memory);
+      const [result] = await sequelize.query(
+        `INSERT INTO brainx_memories (id, content, workspace, metadata, created_at, updated_at) 
+         VALUES (gen_random_uuid(), $1, $2, $3, NOW(), NOW()) 
+         RETURNING id, workspace`,
+        { bind: [content, workspace, JSON.stringify({ ...metadata, category, injectedAt: new Date().toISOString() })] }
+      );
+      memories.push(result[0]);
     }
     
     res.status(201).json({
       success: true,
       injected: memories.length,
-      memories: memories.map(m => ({ id: m.id, workspace: m.workspace }))
+      memories
     });
   } catch (error) {
     console.error('BrainX inject error:', error);
@@ -158,19 +172,16 @@ router.post('/inject', async (req, res) => {
 // GET /api/brainx/workspaces - Lista de workspaces con counts
 router.get('/workspaces', async (req, res) => {
   try {
-    const { BrainXMemory } = req.app.get('models');
+    const { sequelize } = req.app.get('models');
     
-    const workspaces = await BrainXMemory.findAll({
-      attributes: ['workspace', [BrainXMemory.sequelize.fn('COUNT', '*'), 'count']],
-      group: ['workspace'],
-      order: [['workspace', 'ASC']],
-      raw: true
-    });
+    const [workspaces] = await sequelize.query(
+      'SELECT COALESCE(workspace, \'default\') as name, COUNT(*) as count FROM brainx_memories GROUP BY workspace ORDER BY workspace ASC'
+    );
     
     const result = workspaces.map(w => ({
-      name: w.workspace || 'default',
+      name: w.name,
       count: parseInt(w.count),
-      lastUpdated: new Date().toISOString() // Would be actual last update in production
+      lastUpdated: new Date().toISOString()
     }));
     
     res.json({ workspaces: result });
@@ -183,28 +194,27 @@ router.get('/workspaces', async (req, res) => {
 // GET /api/brainx/insights - Query insights
 router.get('/insights', async (req, res) => {
   try {
-    const { BrainXMemory } = req.app.get('models');
+    const { sequelize } = req.app.get('models');
     
-    const totalMemories = await BrainXMemory.count();
+    const [totalResult] = await sequelize.query('SELECT COUNT(*) as count FROM brainx_memories');
+    const totalMemories = parseInt(totalResult[0].count);
     
     // Get recent activity (last 7 days)
     const sevenDaysAgo = new Date();
     sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
     
-    const recentCount = await BrainXMemory.count({
-      where: { createdAt: { [Op.gte]: sevenDaysAgo } }
-    });
+    const [recentResult] = await sequelize.query(
+      'SELECT COUNT(*) as count FROM brainx_memories WHERE created_at >= $1',
+      { bind: [sevenDaysAgo] }
+    );
+    const recentCount = parseInt(recentResult[0].count);
     
     // Get top workspaces
-    const workspaceStats = await BrainXMemory.findAll({
-      attributes: ['workspace', [BrainXMemory.sequelize.fn('COUNT', '*'), 'count']],
-      group: ['workspace'],
-      order: [[BrainXMemory.sequelize.fn('COUNT', '*'), 'DESC']],
-      limit: 5,
-      raw: true
-    });
+    const [workspaceStats] = await sequelize.query(
+      'SELECT COALESCE(workspace, \'default\') as name, COUNT(*) as count FROM brainx_memories GROUP BY workspace ORDER BY COUNT(*) DESC LIMIT 5'
+    );
     
-    // Mock query patterns (would be real analytics in production)
+    // Mock query patterns
     const queryPatterns = [
       { pattern: 'deployment', count: Math.floor(Math.random() * 50) + 20 },
       { pattern: 'database', count: Math.floor(Math.random() * 40) + 15 },
@@ -217,11 +227,11 @@ router.get('/insights', async (req, res) => {
       totalMemories,
       recentAdditions: recentCount,
       topWorkspaces: workspaceStats.map(w => ({
-        name: w.workspace || 'default',
+        name: w.name,
         count: parseInt(w.count)
       })),
       queryPatterns,
-      cacheHitRate: `${Math.floor(Math.random() * 20) + 75}%`, // 75-95%
+      cacheHitRate: `${Math.floor(Math.random() * 20) + 75}%`,
       avgQueryTime: `${Math.floor(Math.random() * 100) + 150}ms`
     });
   } catch (error) {
@@ -230,22 +240,24 @@ router.get('/insights', async (req, res) => {
   }
 });
 
-// GET /api/brainx - Lista memorias (existing endpoint)
+// GET /api/brainx - Lista memorias
 router.get('/', async (req, res) => {
   try {
-    const { BrainXMemory } = req.app.get('models');
+    const { sequelize } = req.app.get('models');
     const { workspace, limit = 50, offset = 0 } = req.query;
     
-    const where = {};
-    if (workspace) where.workspace = workspace;
-
-    const memories = await BrainXMemory.findAll({
-      where,
-      order: [['createdAt', 'DESC']],
-      limit: parseInt(limit),
-      offset: parseInt(offset)
-    });
-
+    let sql = 'SELECT * FROM brainx_memories';
+    const params = [];
+    
+    if (workspace) {
+      sql += ' WHERE workspace = $1';
+      params.push(workspace);
+    }
+    
+    sql += ' ORDER BY created_at DESC LIMIT $' + (params.length + 1) + ' OFFSET $' + (params.length + 2);
+    params.push(parseInt(limit), parseInt(offset));
+    
+    const [memories] = await sequelize.query(sql, { bind: params });
     res.json(memories);
   } catch (error) {
     console.error('Get brainx memories error:', error);
@@ -253,37 +265,43 @@ router.get('/', async (req, res) => {
   }
 });
 
-// GET /api/brainx/:id - Detalle memoria (existing endpoint)
+// GET /api/brainx/:id - Detalle memoria
 router.get('/:id', async (req, res) => {
   try {
-    const { BrainXMemory } = req.app.get('models');
+    const { sequelize } = req.app.get('models');
     const { id } = req.params;
     
-    const memory = await BrainXMemory.findByPk(id);
-
-    if (!memory) {
+    const [memories] = await sequelize.query(
+      'SELECT * FROM brainx_memories WHERE id = $1',
+      { bind: [id] }
+    );
+    
+    if (!memories.length) {
       return res.status(404).json({ error: 'Memory not found' });
     }
-
-    res.json(memory);
+    
+    res.json(memories[0]);
   } catch (error) {
     console.error('Get brainx memory error:', error);
     res.status(500).json({ error: 'Failed to fetch memory' });
   }
 });
 
-// DELETE /api/brainx/:id - Eliminar memoria (existing endpoint)
+// DELETE /api/brainx/:id - Eliminar memoria
 router.delete('/:id', async (req, res) => {
   try {
-    const { BrainXMemory } = req.app.get('models');
+    const { sequelize } = req.app.get('models');
     const { id } = req.params;
     
-    const memory = await BrainXMemory.findByPk(id);
-    if (!memory) {
+    const [result] = await sequelize.query(
+      'DELETE FROM brainx_memories WHERE id = $1 RETURNING id',
+      { bind: [id] }
+    );
+    
+    if (!result.length) {
       return res.status(404).json({ error: 'Memory not found' });
     }
-
-    await memory.destroy();
+    
     res.json({ success: true });
   } catch (error) {
     console.error('Delete brainx memory error:', error);

@@ -22,21 +22,13 @@ const BrainXMemory = sequelize.define('BrainXMemory', {
   metadata: {
     type: DataTypes.JSONB,
     defaultValue: {}
-  },
-  createdAt: {
-    type: DataTypes.DATE,
-    allowNull: true,
-    field: 'createdAt'
-  },
-  updatedAt: {
-    type: DataTypes.DATE,
-    allowNull: true,
-    field: 'updatedAt'
   }
 }, {
   tableName: 'brainx_memories',
   timestamps: true,
-  underscored: false
+  underscored: true, // Use snake_case for columns
+  createdAt: 'created_at',
+  updatedAt: 'updated_at'
 });
 
 export default BrainXMemory;
