@@ -2,7 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import { createServer } from 'http';
 import sequelize from './index.js';
-import { Agent, Mission, MissionStep, Activity, BrainXMemory } from './models/index.js';
+import { Agent, Mission, MissionStep, Activity, BrainXMemory, ScheduledTask, Artifact } from './models/index.js';
 import { initIO } from './websocket/index.js';
 
 // Routes
@@ -12,6 +12,8 @@ import dashboardRouter from './routes-new/dashboard.js';
 import agentsRouter from './routes-new/agents.js';
 import healthRouter from './routes-new/health.js';
 import brainxRouter from './routes-new/brainx.js';
+import schedulerRouter from './routes-new/scheduler.js';
+import artifactsRouter from './routes-new/artifacts.js';
 
 const app = express();
 const httpServer = createServer(app);
@@ -34,7 +36,7 @@ app.use((req, res, next) => {
 });
 
 // Set models on app for routes that use req.app.get('models')
-app.set('models', { sequelize, Agent, Mission, MissionStep, Activity, BrainXMemory });
+app.set('models', { sequelize, Agent, Mission, MissionStep, Activity, BrainXMemory, ScheduledTask, Artifact });
 
 // Mount routes
 app.use('/api/missions', missionsRouter);
@@ -43,6 +45,8 @@ app.use('/api/dashboard', dashboardRouter);
 app.use('/api/agents', agentsRouter);
 app.use('/api/health', healthRouter);
 app.use('/api/brainx', brainxRouter);
+app.use('/api/scheduler', schedulerRouter);
+app.use('/api/artifacts', artifactsRouter);
 
 // 404 handler
 app.use('/api/*', (req, res) => {
@@ -84,6 +88,76 @@ async function start() {
         { id: 'heartbeat', name: 'Heartbeat', type: 'SUBAGENT', status: 'active', provider: 'MiniMax', model: 'MiniMax-M2.5', emoji: '💓', description: 'Cron scheduler' },
       ]);
       console.log('✅ Default agents seeded');
+    }
+
+    // Seed sample scheduled tasks if empty
+    const taskCount = await ScheduledTask.count();
+    if (taskCount === 0) {
+      console.log('🌱 Seeding sample scheduled tasks...');
+      const now = new Date();
+      await ScheduledTask.bulkCreate([
+        {
+          name: 'Morning Sync',
+          agent: 'main',
+          scheduledAt: new Date(now.getTime() + 24 * 60 * 60 * 1000), // Tomorrow
+          recurrence: 'daily',
+          status: 'scheduled',
+          description: 'Daily morning synchronization task'
+        },
+        {
+          name: 'Weekly Report',
+          agent: 'writer',
+          scheduledAt: new Date(now.getTime() + 3 * 24 * 60 * 60 * 1000), // 3 days from now
+          recurrence: 'weekly',
+          status: 'scheduled',
+          description: 'Generate weekly activity report'
+        },
+        {
+          name: 'Database Cleanup',
+          agent: 'coder',
+          scheduledAt: new Date(now.getTime() + 2 * 60 * 60 * 1000), // 2 hours from now
+          recurrence: 'once',
+          status: 'scheduled',
+          description: 'Clean up old database entries'
+        }
+      ]);
+      console.log('✅ Sample tasks seeded');
+    }
+
+    // Seed sample artifacts if empty
+    const artifactCount = await Artifact.count();
+    if (artifactCount === 0) {
+      console.log('🌱 Seeding sample artifacts...');
+      await Artifact.bulkCreate([
+        {
+          name: 'API Documentation.md',
+          emoji: '📄',
+          agent: 'coder',
+          type: 'markdown',
+          size: '12.5 KB',
+          badge: 'MD',
+          content: '# API Documentation\n\n## Endpoints\n\n### GET /api/missions\nReturns list of missions.\n\n### POST /api/missions\nCreates a new mission.'
+        },
+        {
+          name: 'Architecture Diagram.svg',
+          emoji: '🎨',
+          agent: 'designer',
+          type: 'svg',
+          size: '45.2 KB',
+          badge: 'SVG',
+          content: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><circle cx="50" cy="50" r="40"/></svg>'
+        },
+        {
+          name: 'Deployment Guide.md',
+          emoji: '🚀',
+          agent: 'devops',
+          type: 'markdown',
+          size: '8.3 KB',
+          badge: 'MD',
+          content: '# Deployment Guide\n\n## Prerequisites\n- Node.js 18+\n- PostgreSQL 14+\n\n## Steps\n1. Clone repository\n2. Install dependencies\n3. Configure environment'
+        }
+      ]);
+      console.log('✅ Sample artifacts seeded');
     }
 
     // Start server
