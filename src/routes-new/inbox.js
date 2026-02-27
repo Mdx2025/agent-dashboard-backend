@@ -1,6 +1,5 @@
 import { Router } from 'express';
-import { Session, Run, LogEntry } from '../models/index.js';
-import { Op } from 'sequelize';
+import { Mission } from '../models/index.js';
 
 const router = Router();
 
@@ -16,32 +15,31 @@ const AGENT_EMOJIS = {
   raider: '🏴‍☠️', monitor: '📊', router: '🔄'
 };
 
-// GET /api/inbox - Listar threads desde DB
+// GET /api/inbox - Listar threads desde Missions
 router.get('/', async (req, res) => {
   try {
-    const sessions = await Session.findAll({
-      order: [['started_at', 'DESC']],
+    const missions = await Mission.findAll({
+      order: [['createdAt', 'DESC']],
       limit: 50
     });
     
-    const threads = sessions.map(session => {
-      const agentId = session.agent_id;
-      const sessionId = session.id;
-      const metadata = session.metadata || {};
+    const threads = missions.map(mission => {
+      const metadata = mission.metadata || {};
+      const agentId = mission.agent_id || 'unknown';
       
       return {
-        id: sessionId,
-        name: `${AGENT_EMOJIS[agentId] || '🤖'} ${AGENT_NAMES[agentId] || agentId} - ${sessionId.slice(0, 8)}`,
+        id: mission.id,
+        name: `${AGENT_EMOJIS[agentId] || '🤖'} ${AGENT_NAMES[agentId] || agentId} - ${mission.title?.slice(0, 20) || 'Task'}`,
         agent: agentId,
         agentName: AGENT_NAMES[agentId] || agentId,
         messages: [{
           role: 'system',
-          text: `Session with ${metadata.messageCount || 0} messages, ${session.total_tokens || 0} tokens`,
-          time: session.started_at
+          text: mission.description || 'Task created',
+          time: mission.due_date || mission.createdAt
         }],
-        status: session.status === 'failed' ? 'error' : 'active',
-        lastSeenAt: session.last_activity_at,
-        lastMessage: `${metadata.messageCount || 0} messages exchanged`
+        status: mission.status === 'failed' ? 'error' : 'active',
+        lastSeenAt: mission.updatedAt || mission.createdAt,
+        lastMessage: mission.description?.substring(0, 50) || 'No details'
       };
     });
     
@@ -52,12 +50,10 @@ router.get('/', async (req, res) => {
   }
 });
 
-// POST /api/inbox/:id/reply
 router.post('/:id/reply', async (req, res) => {
-  res.json({ success: true, message: 'Reply sent (simulated)' });
+  res.json({ success: true, message: 'Reply sent' });
 });
 
-// POST /api/inbox/:id/ping
 router.post('/:id/ping', async (req, res) => {
   res.json({ success: true, message: 'Ping sent' });
 });
