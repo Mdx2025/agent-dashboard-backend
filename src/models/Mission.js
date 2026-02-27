@@ -9,7 +9,7 @@ const Mission = sequelize.define('Mission', {
   },
   title: {
     type: DataTypes.STRING,
-    allowNull: false
+    allowNull: true
   },
   agentId: {
     type: DataTypes.STRING,
