@@ -62,7 +62,6 @@ app.use('/api/webhooks', webhooksRouter);
 // TEMP: ETL Endpoint
 import fs from 'fs/promises';
 import path from 'path';
-import { createReadStream } from 'fs';
 import readline from 'readline';
 
 const OPENCLAW_DIR = path.join(process.env.HOME || '/home/clawd', '.openclaw', 'agents');
