@@ -1,14 +1,10 @@
 #!/usr/bin/env node
-/**
- * ETL Simple - usa models del backend
- */
-
-import { sequelize } from '../index.js';
+import sequelize from '../index.js';
+import { Session, Run, Mission } from '../models/index.js';
 import fs from 'fs/promises';
 import path from 'path';
 import { createReadStream } from 'fs';
 import readline from 'readline';
-import { Op } from 'sequelize';
 
 const OPENCLAW_DIR = path.join(process.env.HOME || '/home/clawd', '.openclaw', 'agents');
 
@@ -21,8 +17,7 @@ async function parseJsonlFile(filePath, agentId) {
   const rl = readline.createInterface({ input: fileStream, crlfDelay: Infinity });
 
   let firstTimestamp = null, lastTimestamp = null, totalTokens = 0;
-  let models = new Set(), hasError = false, cost = 0, duration = 0;
-  let messageCount = 0;
+  let models = new Set(), hasError = false, messageCount = 0;
 
   for await (const line of rl) {
     if (!line.trim()) continue;
@@ -38,16 +33,11 @@ async function parseJsonlFile(filePath, agentId) {
         totalTokens += (entry.payload.usage.total_tokens || 0);
         if (entry.payload.model) models.add(entry.payload.model);
       }
-      if (entry.type === 'system') {
-        if (entry.payload?.cost) cost += entry.payload.cost;
-        if (entry.payload?.duration) duration += entry.payload.duration;
-      }
       messageCount++;
     } catch (e) {}
   }
 
   if (!firstTimestamp) return null;
-  if (!duration && lastTimestamp) duration = lastTimestamp - firstTimestamp;
 
   return {
     id: sessionId, agent_id: agentId, status: hasError ? 'failed' : 'closed',
@@ -75,7 +65,8 @@ async function discoverSessions() {
 
 async function runETL() {
   console.log('🚀 ETL OpenClaw → Dashboard\n');
-  const { Session, Run, Mission, Activity } = sequelize.models;
+  await sequelize.authenticate();
+  console.log('✅ Database connected\n');
   
   console.log('1️⃣ Descubriendo sesiones...');
   const sessions = await discoverSessions();
@@ -87,24 +78,18 @@ async function runETL() {
     const data = await parseJsonlFile(s.filePath, s.agentId);
     if (!data) continue;
 
-    // Crear/actualizar session
     await Session.upsert(data);
-
-    // Crear run
     const runId = 'run_' + data.id;
     await Run.upsert({
       id: runId, session_id: data.id, agent_id: data.agent_id,
       label: `${data.agent_id}: ${data.id.slice(0, 8)}`,
       status: data.status === 'failed' ? 'failed' : 'finished',
       started_at: data.started_at, finished_at: data.last_activity_at,
-      duration: data.metadata.duration || 0,
-      model: data.metadata.models?.[0] || 'unknown',
+      duration: 0, model: data.metadata.models?.[0] || 'unknown',
       tokens_in: Math.floor(data.metadata.messageCount * 100),
-      tokens_out: data.total_tokens,
-      cost: 0, metadata: { source: 'etl' }
+      tokens_out: data.total_tokens, cost: 0, metadata: { source: 'etl' }
     });
 
-    // Crear mission si no existe
     const existing = await Mission.findByPk(runId);
     if (!existing) {
       await Mission.create({
