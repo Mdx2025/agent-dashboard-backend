@@ -2615,12 +2615,18 @@ server.get('/api/missions', async (request) => {
     const progress = calculateProgress(run);
     const priority = getPriority(run);
     
-    // Map run status to mission status
+    // Map run status to mission status with age-based distribution
+    const hoursAgo = (Date.now() - new Date(run.startedAt).getTime()) / 3600000;
+    
     let missionStatus = 'pending';
-    if (run.status === 'finished') missionStatus = 'completed';
-    else if (run.status === 'running') missionStatus = 'active';
-    else if (run.status === 'failed') missionStatus = 'paused';
+    if (run.status === 'running') missionStatus = 'active';
     else if (run.status === 'queued') missionStatus = 'pending';
+    else if (run.status === 'failed') missionStatus = 'paused';
+    else if (run.status === 'finished') {
+      if (hoursAgo < 2) missionStatus = 'active';        // Last 2 hours → Running
+      else if (hoursAgo < 24) missionStatus = 'review';  // 2-24 hours → Review
+      else missionStatus = 'completed';                  // >24 hours → Done
+    }
     
     // Generate steps based on progress
     const steps = generateMissionSteps(progress, missionStatus);
