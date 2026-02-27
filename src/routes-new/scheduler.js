@@ -183,4 +183,20 @@ router.get('/stats', async (req, res) => {
   }
 });
 
+
+// GET /api/scheduler - Listar tareas programadas (alias de /tasks)
+router.get("/", async (req, res) => {
+  try {
+    const { ScheduledTask } = req.app.get("models");
+    const tasks = await ScheduledTask.findAll({
+      order: [["scheduledAt", "ASC"]],
+      limit: 100
+    });
+    res.json(tasks);
+  } catch (error) {
+    console.error("Scheduler GET error:", error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 export default router;
