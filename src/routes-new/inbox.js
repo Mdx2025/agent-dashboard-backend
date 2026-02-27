@@ -25,7 +25,7 @@ router.get('/', async (req, res) => {
     
     const threads = missions.map(mission => {
       const metadata = mission.metadata || {};
-      const agentId = mission.agent_id || 'unknown';
+      const agentId = mission.agentId || 'unknown';
       
       return {
         id: mission.id,
@@ -35,7 +35,7 @@ router.get('/', async (req, res) => {
         messages: [{
           role: 'system',
           text: mission.description || 'Task created',
-          time: mission.due_date || mission.createdAt
+          time: mission.dueDate || mission.createdAt
         }],
         status: mission.status === 'failed' ? 'error' : 'active',
         lastSeenAt: mission.updatedAt || mission.createdAt,
