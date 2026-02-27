@@ -1,0 +1,15 @@
+[Unit]
+Description=MDX Bridge - OpenClaw Dashboard Sidecar
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/home/clawd/mdx-bridge
+ExecStart=/usr/bin/node /home/clawd/mdx-bridge/server.js
+Restart=on-failure
+RestartSec=5
+Environment=PORT=3001
+Environment=HOME=/home/clawd
+
+[Install]
+WantedBy=default.target
