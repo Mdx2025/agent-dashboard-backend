@@ -165,10 +165,10 @@ async function start() {
     if (missionCount === 0) {
       console.log("🌱 Seeding sample missions...");
       await Mission.bulkCreate([
-        { name: "Email Campaign Automation", description: "Automate email outreach", agent: "coder", status: "in_progress", progress: 65, priority: "high", deadline: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) },
-        { name: "BrainX Integration", description: "Integrate BrainX memory", agent: "main", status: "pending", progress: 0, priority: "high", deadline: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000) },
-        { name: "Documentation Update", description: "Update API docs", agent: "writer", status: "completed", progress: 100, priority: "medium", deadline: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000) },
-        { name: "Performance Optimization", description: "Optimize dashboard", agent: "coder", status: "in_progress", progress: 40, priority: "medium", deadline: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000) }
+        { title: "Email Campaign Automation", description: "Automate email outreach", agentId: "coder", status: "in_progress", progress: 65, priority: "high", dueDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) },
+        { title: "BrainX Integration", description: "Integrate BrainX memory", agentId: "main", status: "pending", progress: 0, priority: "high", dueDate: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000) },
+        { title: "Documentation Update", description: "Update API docs", agentId: "writer", status: "completed", progress: 100, priority: "medium", dueDate: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000) },
+        { title: "Performance Optimization", description: "Optimize dashboard", agentId: "coder", status: "in_progress", progress: 40, priority: "medium", dueDate: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000) }
       ]);
       console.log("✅ Sample missions seeded");
     }
