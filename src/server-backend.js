@@ -22,6 +22,7 @@ import brainxRouter from './routes-new/brainx.js';
 import schedulerRouter from './routes-new/scheduler.js';
 import artifactsRouter from './routes-new/artifacts.js';
 import webhooksRouter from './routes-new/webhooks.js';
+import inboxRouter from './routes-new/inbox.js';
 import etlRouter from './routes-new/etl.js';
 
 const app = express();
@@ -58,6 +59,7 @@ app.use('/api/scheduler', schedulerRouter);
 app.use('/api/admin/etl', etlRouter);
 app.use('/api/artifacts', artifactsRouter);
 app.use('/api/webhooks', webhooksRouter);
+app.use('/api/inbox', inboxRouter);
 // TEMP: ETL Endpoint
 
 const OPENCLAW_DIR = path.join(process.env.HOME || '/home/clawd', '.openclaw', 'agents');
