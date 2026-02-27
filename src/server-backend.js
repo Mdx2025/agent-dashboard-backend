@@ -160,8 +160,30 @@ async function start() {
       console.log('✅ Sample artifacts seeded');
     }
 
+    // Seed sample missions if empty
+    const missionCount = await Mission.count();
+    if (missionCount === 0) {
+      console.log("🌱 Seeding sample missions...");
+      await Mission.bulkCreate([
+        { title: "Email Campaign Automation", description: "Automate email outreach", agentId: "coder", status: "in_progress", progress: 65, priority: "high", dueDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) },
+        { title: "BrainX Integration", description: "Integrate BrainX memory", agentId: "main", status: "pending", progress: 0, priority: "high", dueDate: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000) },
+        { title: "Documentation Update", description: "Update API docs", agentId: "writer", status: "completed", progress: 100, priority: "medium", dueDate: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000) },
+        { title: "Performance Optimization", description: "Optimize dashboard", agentId: "coder", status: "in_progress", progress: 40, priority: "medium", dueDate: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000) }
+      ]);
+      console.log("✅ Sample missions seeded");
     }
 
+    // Seed sample activity if empty
+    const activityCount = await Activity.count();
+    if (activityCount === 0) {
+      console.log("🌱 Seeding sample activity...");
+      await Activity.bulkCreate([
+        { agentId: "main", agentEmoji: "🧠", type: "message", message: "Completed mission", timestamp: new Date(Date.now() - 2 * 60 * 60 * 1000) },
+        { agentId: "coder", agentEmoji: "💻", type: "run", message: "Deployed frontend v1.2.0", timestamp: new Date(Date.now() - 4 * 60 * 60 * 1000) },
+        { agentId: "heartbeat", agentEmoji: "💓", type: "system", message: "Health check passed", timestamp: new Date(Date.now() - 6 * 60 * 60 * 1000) },
+        { agentId: "writer", agentEmoji: "✍️", type: "message", message: "Generated report", timestamp: new Date(Date.now() - 8 * 60 * 60 * 1000) }
+      ]);
+      console.log("✅ Sample activity seeded");
     }
 
     // Start server
