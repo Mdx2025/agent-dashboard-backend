@@ -8,6 +8,33 @@ function getDateColumn(model, column = 'created') {
   // Use underscored column names
   return column === 'created' ? 'created_at' : 'updated_at';
 }
+// GET /api/brainx/health - Health check
+router.get('/health', async (req, res) => {
+  try {
+    const { BrainXMemory, sequelize } = req.app.get('models');
+    
+    // Test connection
+    await sequelize.authenticate();
+    
+    // Get memory count
+    const count = await BrainXMemory.count();
+    
+    res.json({
+      status: 'connected',
+      database: sequelize.getDatabaseName(),
+      memories: count,
+      timestamp: Date.now()
+    });
+  } catch (error) {
+    console.error('BrainX health check error:', error);
+    res.status(500).json({
+      status: 'disconnected',
+      error: error.message,
+      timestamp: Date.now()
+    });
+  }
+});
+
 
 // GET /api/brainx/stats - Stats para el dashboard
 router.get('/stats', async (req, res) => {
