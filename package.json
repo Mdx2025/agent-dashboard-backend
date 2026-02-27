@@ -1,6 +1,6 @@
 {
   "name": "mdx-control-backend",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "MDX Control Backend - Agent dashboard API with missions, activity feed, and WebSocket",
   "type": "module",
   "main": "src/server-backend.js",
