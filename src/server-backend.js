@@ -16,6 +16,7 @@ import brainxRouter from './routes-new/brainx.js';
 import schedulerRouter from './routes-new/scheduler.js';
 import artifactsRouter from './routes-new/artifacts.js';
 import webhooksRouter from './routes-new/webhooks.js';
+import etlRouter from './routes-new/etl.js';
 
 const app = express();
 const httpServer = createServer(app);
@@ -48,6 +49,7 @@ app.use('/api/agents', agentsRouter);
 app.use('/api/health', healthRouter);
 app.use('/api/brainx', brainxRouter);
 app.use('/api/scheduler', schedulerRouter);
+app.use('/api/admin/etl', etlRouter);
 app.use('/api/artifacts', artifactsRouter);
 app.use('/api/webhooks', webhooksRouter);
 
