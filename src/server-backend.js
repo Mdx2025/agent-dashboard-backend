@@ -75,7 +75,7 @@ async function start() {
     // Sync all models (creates tables if not exist)
     await sequelize.sync({ alter: true });
     console.log('✅ Models synced');
-n    // Sync runs to missions
+    // Sync runs to missions
     await syncRunsToMissions(sequelize);
     console.log('✅ Runs synced to missions');
 
