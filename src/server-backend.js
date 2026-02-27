@@ -160,6 +160,32 @@ async function start() {
       console.log('✅ Sample artifacts seeded');
     }
 
+    // Seed sample missions if empty
+    const missionCount = await Mission.count();
+    if (missionCount === 0) {
+      console.log("🌱 Seeding sample missions...");
+      await Mission.bulkCreate([
+        { name: "Email Campaign Automation", description: "Automate email outreach", agent: "coder", status: "in_progress", progress: 65, priority: "high", deadline: new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000) },
+        { name: "BrainX Integration", description: "Integrate BrainX memory", agent: "main", status: "pending", progress: 0, priority: "high", deadline: new Date(now.getTime() + 3 * 24 * 60 * 60 * 1000) },
+        { name: "Documentation Update", description: "Update API docs", agent: "writer", status: "completed", progress: 100, priority: "medium", deadline: new Date(now.getTime() - 2 * 24 * 60 * 60 * 1000) },
+        { name: "Performance Optimization", description: "Optimize dashboard", agent: "coder", status: "in_progress", progress: 40, priority: "medium", deadline: new Date(now.getTime() + 5 * 24 * 60 * 60 * 1000) }
+      ]);
+      console.log("✅ Sample missions seeded");
+    }
+
+    // Seed sample activity if empty
+    const activityCount = await Activity.count();
+    if (activityCount === 0) {
+      console.log("🌱 Seeding sample activity...");
+      await Activity.bulkCreate([
+        { agentId: "main", agentEmoji: "🧠", type: "message", message: "Completed mission", timestamp: new Date(now.getTime() - 2 * 60 * 60 * 1000) },
+        { agentId: "coder", agentEmoji: "💻", type: "run", message: "Deployed frontend v1.2.0", timestamp: new Date(now.getTime() - 4 * 60 * 60 * 1000) },
+        { agentId: "heartbeat", agentEmoji: "💓", type: "system", message: "Health check passed", timestamp: new Date(now.getTime() - 6 * 60 * 60 * 1000) },
+        { agentId: "writer", agentEmoji: "✍️", type: "message", message: "Generated report", timestamp: new Date(now.getTime() - 8 * 60 * 60 * 1000) }
+      ]);
+      console.log("✅ Sample activity seeded");
+    }
+
     // Start server
     httpServer.listen(PORT, '0.0.0.0', () => {
       console.log(`🚀 MDX Control Backend running on http://0.0.0.0:${PORT}`);

@@ -241,6 +241,31 @@ router.get('/insights', async (req, res) => {
 });
 
 // GET /api/brainx - Lista memorias
+// GET /api/brainx/memories - Lista memorias (alias para compatibilidad con frontend)
+router.get("/memories", async (req, res) => {
+  try {
+    const { sequelize } = req.app.get("models");
+    const { workspace, limit = 50, offset = 0 } = req.query;
+    
+    let sql = "SELECT * FROM brainx_memories";
+    const params = [];
+    
+    if (workspace) {
+      sql += " WHERE workspace = $1";
+      params.push(workspace);
+    }
+    
+    sql += " ORDER BY created_at DESC LIMIT $" + (params.length + 1) + " OFFSET $" + (params.length + 2);
+    params.push(parseInt(limit), parseInt(offset));
+    
+    const [memories] = await sequelize.query(sql, { bind: params });
+    res.json(memories);
+  } catch (error) {
+    console.error("Get brainx memories error:", error);
+    res.status(500).json({ error: "Failed to fetch memories" });
+  }
+});
+
 router.get('/', async (req, res) => {
   try {
     const { sequelize } = req.app.get('models');
