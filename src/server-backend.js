@@ -10,7 +10,6 @@ import { initIO } from './websocket/index.js';
 import missionsRouter from './routes-new/missions.js';
 
 // ETL imports
-import fs from 'fs/promises';
 import path from 'path';
 import { createReadStream } from 'fs';
 import readline from 'readline';
@@ -60,7 +59,6 @@ app.use('/api/admin/etl', etlRouter);
 app.use('/api/artifacts', artifactsRouter);
 app.use('/api/webhooks', webhooksRouter);
 // TEMP: ETL Endpoint
-import fs from 'fs/promises';
 import path from 'path';
 import readline from 'readline';
 
