@@ -59,8 +59,6 @@ app.use('/api/admin/etl', etlRouter);
 app.use('/api/artifacts', artifactsRouter);
 app.use('/api/webhooks', webhooksRouter);
 // TEMP: ETL Endpoint
-import path from 'path';
-import readline from 'readline';
 
 const OPENCLAW_DIR = path.join(process.env.HOME || '/home/clawd', '.openclaw', 'agents');
 
