@@ -14,6 +14,7 @@ import healthRouter from './routes-new/health.js';
 import brainxRouter from './routes-new/brainx.js';
 import schedulerRouter from './routes-new/scheduler.js';
 import artifactsRouter from './routes-new/artifacts.js';
+import webhooksRouter from './routes-new/webhooks.js';
 
 const app = express();
 const httpServer = createServer(app);
@@ -47,6 +48,7 @@ app.use('/api/health', healthRouter);
 app.use('/api/brainx', brainxRouter);
 app.use('/api/scheduler', schedulerRouter);
 app.use('/api/artifacts', artifactsRouter);
+app.use('/api/webhooks', webhooksRouter);
 
 // 404 handler
 app.use('/api/*', (req, res) => {

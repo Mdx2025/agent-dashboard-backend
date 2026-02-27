@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { Op } from 'sequelize';
 import { Mission, MissionStep, Agent } from '../models/index.js';
 import { getIO } from '../websocket/index.js';
+import { executeAgent } from '../services/agentRunner.js';
 
 const router = Router();
 
@@ -100,7 +101,7 @@ router.get('/:id', async (req, res) => {
 // POST /api/missions - Create new mission with steps
 router.post('/', async (req, res) => {
   try {
-    const { title, agentId, priority, dueDate, steps, metadata } = req.body;
+    const { title, agentId, priority, dueDate, steps, metadata, description } = req.body;
 
     if (!title) {
       return res.status(400).json({ error: 'title is required' });
@@ -179,6 +180,67 @@ router.post('/', async (req, res) => {
   }
 });
 
+// POST /api/missions/:id/execute - Execute mission by spawning an agent
+router.post('/:id/execute', async (req, res) => {
+  try {
+    const mission = await Mission.findByPk(req.params.id);
+    if (!mission) {
+      return res.status(404).json({ error: 'Mission not found' });
+    }
+
+    // Check if already running
+    if (mission.status === 'in_progress') {
+      return res.status(409).json({ error: 'Mission is already running' });
+    }
+
+    // Update status to running
+    await mission.update({ 
+      status: 'in_progress', 
+      startedAt: new Date(),
+      metadata: {
+        ...mission.metadata,
+        executionRequestedAt: new Date().toISOString()
+      }
+    });
+
+    // Execute agent
+    const result = await executeAgent(mission);
+
+    // Emit WebSocket event
+    try {
+      const io = getIO();
+      if (io) {
+        io.emit('mission.execute', {
+          id: mission.id,
+          title: mission.title,
+          agentId: mission.agentId,
+          status: 'in_progress',
+          executionId: result.id || result.sessionId
+        });
+      }
+    } catch (e) { /* ws optional */ }
+
+    res.json({ 
+      success: true, 
+      missionId: mission.id,
+      executionId: result.id || result.sessionId,
+      status: 'in_progress'
+    });
+  } catch (err) {
+    console.error('POST /api/missions/:id/execute error:', err);
+    
+    // Revert status on error
+    try {
+      await Mission.update(
+        { status: 'failed', metadata: { error: err.message } },
+        { where: { id: req.params.id } }
+      );
+    } catch (e) { /* ignore */ }
+    
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // PATCH /api/missions/:id - Update mission
 router.patch('/:id', async (req, res) => {
   try {
@@ -187,7 +249,7 @@ router.patch('/:id', async (req, res) => {
       return res.status(404).json({ error: 'Mission not found' });
     }
 
-    const { status, progress, currentStepId, title, priority, dueDate, agentId, metadata } = req.body;
+    const { status, progress, currentStepId, title, priority, dueDate, agentId, metadata, description } = req.body;
 
     // Update mission fields
     const updates = {};
