@@ -78,14 +78,14 @@ async function start() {
     if (agentCount === 0) {
       console.log('🌱 Seeding default agents...');
       await Agent.bulkCreate([
-        { id: 'main', title: 'Main', type: 'MAIN', status: 'active', provider: 'MiniMax', model: 'MiniMax-M2.5-highspeed', emoji: '🧠', description: 'Main orchestrator agent' },
-        { id: 'coder', title: 'Coder', type: 'SUBAGENT', status: 'active', provider: 'Kimi', model: 'k2p5', emoji: '💻', description: 'Code writing and review' },
-        { id: 'writer', title: 'Writer', type: 'SUBAGENT', status: 'idle', provider: 'OpenAI', model: 'gpt-5.3-codex', emoji: '✍️', description: 'Content writer' },
-        { id: 'researcher', title: 'Researcher', type: 'SUBAGENT', status: 'idle', provider: 'Google', model: 'gemini-2.5-pro', emoji: '🔍', description: 'Research agent' },
-        { id: 'reasoning', title: 'Reasoning', type: 'SUBAGENT', status: 'idle', provider: 'OpenAI', model: 'gpt-5.2', emoji: '🤔', description: 'Deep reasoning' },
-        { id: 'clawma', title: 'Clawma', type: 'SUBAGENT', status: 'idle', provider: 'ZAI', model: 'glm-5', emoji: '🐾', description: 'Cost-optimized tasks' },
-        { id: 'support', title: 'Support', type: 'SUBAGENT', status: 'idle', provider: 'MiniMax', model: 'MiniMax-M2.5', emoji: '🛟', description: 'Support agent' },
-        { id: 'heartbeat', title: 'Heartbeat', type: 'SUBAGENT', status: 'active', provider: 'MiniMax', model: 'MiniMax-M2.5', emoji: '💓', description: 'Cron scheduler' },
+        { id: 'main', name: 'Main', type: 'MAIN', status: 'active', provider: 'MiniMax', model: 'MiniMax-M2.5-highspeed', emoji: '🧠', description: 'Main orchestrator agent' },
+        { id: 'coder', name: 'Coder', type: 'SUBAGENT', status: 'active', provider: 'Kimi', model: 'k2p5', emoji: '💻', description: 'Code writing and review' },
+        { id: 'writer', name: 'Writer', type: 'SUBAGENT', status: 'idle', provider: 'OpenAI', model: 'gpt-5.3-codex', emoji: '✍️', description: 'Content writer' },
+        { id: 'researcher', name: 'Researcher', type: 'SUBAGENT', status: 'idle', provider: 'Google', model: 'gemini-2.5-pro', emoji: '🔍', description: 'Research agent' },
+        { id: 'reasoning', name: 'Reasoning', type: 'SUBAGENT', status: 'idle', provider: 'OpenAI', model: 'gpt-5.2', emoji: '🤔', description: 'Deep reasoning' },
+        { id: 'clawma', name: 'Clawma', type: 'SUBAGENT', status: 'idle', provider: 'ZAI', model: 'glm-5', emoji: '🐾', description: 'Cost-optimized tasks' },
+        { id: 'support', name: 'Support', type: 'SUBAGENT', status: 'idle', provider: 'MiniMax', model: 'MiniMax-M2.5', emoji: '🛟', description: 'Support agent' },
+        { id: 'heartbeat', name: 'Heartbeat', type: 'SUBAGENT', status: 'active', provider: 'MiniMax', model: 'MiniMax-M2.5', emoji: '💓', description: 'Cron scheduler' },
       ]);
       console.log('✅ Default agents seeded');
     }
@@ -97,24 +97,24 @@ async function start() {
       const now = new Date();
       await ScheduledTask.bulkCreate([
         {
-          title: 'Morning Sync',
-          agentId: 'main',
+          name: 'Morning Sync',
+          agent: 'main',
           scheduledAt: new Date(Date.now() + 24 * 60 * 60 * 1000), // Tomorrow
           recurrence: 'daily',
           status: 'scheduled',
           description: 'Daily morning synchronization task'
         },
         {
-          title: 'Weekly Report',
-          agentId: 'writer',
+          name: 'Weekly Report',
+          agent: 'writer',
           scheduledAt: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000), // 3 days from now
           recurrence: 'weekly',
           status: 'scheduled',
           description: 'Generate weekly activity report'
         },
         {
-          title: 'Database Cleanup',
-          agentId: 'coder',
+          name: 'Database Cleanup',
+          agent: 'coder',
           scheduledAt: new Date(Date.now() + 2 * 60 * 60 * 1000), // 2 hours from now
           recurrence: 'once',
           status: 'scheduled',
@@ -130,27 +130,27 @@ async function start() {
       console.log('🌱 Seeding sample artifacts...');
       await Artifact.bulkCreate([
         {
-          title: 'API Documentation.md',
+          name: 'API Documentation.md',
           emoji: '📄',
-          agentId: 'coder',
+          agent: 'coder',
           type: 'markdown',
           size: '12.5 KB',
           badge: 'MD',
           content: '# API Documentation\n\n## Endpoints\n\n### GET /api/missions\nReturns list of missions.\n\n### POST /api/missions\nCreates a new mission.'
         },
         {
-          title: 'Architecture Diagram.svg',
+          name: 'Architecture Diagram.svg',
           emoji: '🎨',
-          agentId: 'designer',
+          agent: 'designer',
           type: 'svg',
           size: '45.2 KB',
           badge: 'SVG',
           content: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><circle cx="50" cy="50" r="40"/></svg>'
         },
         {
-          title: 'Deployment Guide.md',
+          name: 'Deployment Guide.md',
           emoji: '🚀',
-          agentId: 'devops',
+          agent: 'devops',
           type: 'markdown',
           size: '8.3 KB',
           badge: 'MD',
@@ -165,10 +165,10 @@ async function start() {
     if (missionCount === 0) {
       console.log("🌱 Seeding sample missions...");
       await Mission.bulkCreate([
-        { title: "Email Campaign Automation", description: "Automate email outreach", agentId: "coder", status: "in_progress", progress: 65, priority: "high", dueDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) },
-        { title: "BrainX Integration", description: "Integrate BrainX memory", agentId: "main", status: "pending", progress: 0, priority: "high", dueDate: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000) },
-        { title: "Documentation Update", description: "Update API docs", agentId: "writer", status: "completed", progress: 100, priority: "medium", dueDate: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000) },
-        { title: "Performance Optimization", description: "Optimize dashboard", agentId: "coder", status: "in_progress", progress: 40, priority: "medium", dueDate: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000) }
+        { name: "Email Campaign Automation", description: "Automate email outreach", agent: "coder", status: "in_progress", progress: 65, priority: "high", deadline: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) },
+        { name: "BrainX Integration", description: "Integrate BrainX memory", agent: "main", status: "pending", progress: 0, priority: "high", deadline: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000) },
+        { name: "Documentation Update", description: "Update API docs", agent: "writer", status: "completed", progress: 100, priority: "medium", deadline: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000) },
+        { name: "Performance Optimization", description: "Optimize dashboard", agent: "coder", status: "in_progress", progress: 40, priority: "medium", deadline: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000) }
       ]);
       console.log("✅ Sample missions seeded");
     }
