@@ -70,7 +70,7 @@ async function start() {
     console.log('✅ Database connected');
 
     // Sync all models (creates tables if not exist)
-    await sequelize.sync({ alter: false });
+    await sequelize.sync({ alter: true });
     console.log('✅ Models synced');
 
     // Seed default agents if empty
