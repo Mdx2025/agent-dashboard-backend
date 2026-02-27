@@ -2,7 +2,8 @@ import express from 'express';
 import cors from 'cors';
 import { createServer } from 'http';
 import sequelize from './index.js';
-import { Agent, Mission, MissionStep, Activity, BrainXMemory, ScheduledTask, Artifact } from './models/index.js';
+import { Agent, Mission, MissionStep, Activity, BrainXMemory, ScheduledTask, Artifact, Run, Session, LogEntry } from './models/index.js';
+import { syncRunsToMissions } from './services/runSync.js';
 import { initIO } from './websocket/index.js';
 
 // Routes
@@ -74,6 +75,9 @@ async function start() {
     // Sync all models (creates tables if not exist)
     await sequelize.sync({ alter: true });
     console.log('✅ Models synced');
+n    // Sync runs to missions
+    await syncRunsToMissions(sequelize);
+    console.log('✅ Runs synced to missions');
 
     // Seed default agents if empty
     const agentCount = await Agent.count();
