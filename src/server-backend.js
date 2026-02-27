@@ -99,7 +99,7 @@ async function start() {
         {
           name: 'Morning Sync',
           agent: 'main',
-          scheduledAt: new Date(now.getTime() + 24 * 60 * 60 * 1000), // Tomorrow
+          scheduledAt: new Date(Date.now() + 24 * 60 * 60 * 1000), // Tomorrow
           recurrence: 'daily',
           status: 'scheduled',
           description: 'Daily morning synchronization task'
@@ -107,7 +107,7 @@ async function start() {
         {
           name: 'Weekly Report',
           agent: 'writer',
-          scheduledAt: new Date(now.getTime() + 3 * 24 * 60 * 60 * 1000), // 3 days from now
+          scheduledAt: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000), // 3 days from now
           recurrence: 'weekly',
           status: 'scheduled',
           description: 'Generate weekly activity report'
@@ -115,7 +115,7 @@ async function start() {
         {
           name: 'Database Cleanup',
           agent: 'coder',
-          scheduledAt: new Date(now.getTime() + 2 * 60 * 60 * 1000), // 2 hours from now
+          scheduledAt: new Date(Date.now() + 2 * 60 * 60 * 1000), // 2 hours from now
           recurrence: 'once',
           status: 'scheduled',
           description: 'Clean up old database entries'
@@ -165,10 +165,10 @@ async function start() {
     if (missionCount === 0) {
       console.log("🌱 Seeding sample missions...");
       await Mission.bulkCreate([
-        { name: "Email Campaign Automation", description: "Automate email outreach", agent: "coder", status: "in_progress", progress: 65, priority: "high", deadline: new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000) },
-        { name: "BrainX Integration", description: "Integrate BrainX memory", agent: "main", status: "pending", progress: 0, priority: "high", deadline: new Date(now.getTime() + 3 * 24 * 60 * 60 * 1000) },
-        { name: "Documentation Update", description: "Update API docs", agent: "writer", status: "completed", progress: 100, priority: "medium", deadline: new Date(now.getTime() - 2 * 24 * 60 * 60 * 1000) },
-        { name: "Performance Optimization", description: "Optimize dashboard", agent: "coder", status: "in_progress", progress: 40, priority: "medium", deadline: new Date(now.getTime() + 5 * 24 * 60 * 60 * 1000) }
+        { name: "Email Campaign Automation", description: "Automate email outreach", agent: "coder", status: "in_progress", progress: 65, priority: "high", deadline: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) },
+        { name: "BrainX Integration", description: "Integrate BrainX memory", agent: "main", status: "pending", progress: 0, priority: "high", deadline: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000) },
+        { name: "Documentation Update", description: "Update API docs", agent: "writer", status: "completed", progress: 100, priority: "medium", deadline: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000) },
+        { name: "Performance Optimization", description: "Optimize dashboard", agent: "coder", status: "in_progress", progress: 40, priority: "medium", deadline: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000) }
       ]);
       console.log("✅ Sample missions seeded");
     }
@@ -178,10 +178,10 @@ async function start() {
     if (activityCount === 0) {
       console.log("🌱 Seeding sample activity...");
       await Activity.bulkCreate([
-        { agentId: "main", agentEmoji: "🧠", type: "message", message: "Completed mission", timestamp: new Date(now.getTime() - 2 * 60 * 60 * 1000) },
-        { agentId: "coder", agentEmoji: "💻", type: "run", message: "Deployed frontend v1.2.0", timestamp: new Date(now.getTime() - 4 * 60 * 60 * 1000) },
-        { agentId: "heartbeat", agentEmoji: "💓", type: "system", message: "Health check passed", timestamp: new Date(now.getTime() - 6 * 60 * 60 * 1000) },
-        { agentId: "writer", agentEmoji: "✍️", type: "message", message: "Generated report", timestamp: new Date(now.getTime() - 8 * 60 * 60 * 1000) }
+        { agentId: "main", agentEmoji: "🧠", type: "message", message: "Completed mission", timestamp: new Date(Date.now() - 2 * 60 * 60 * 1000) },
+        { agentId: "coder", agentEmoji: "💻", type: "run", message: "Deployed frontend v1.2.0", timestamp: new Date(Date.now() - 4 * 60 * 60 * 1000) },
+        { agentId: "heartbeat", agentEmoji: "💓", type: "system", message: "Health check passed", timestamp: new Date(Date.now() - 6 * 60 * 60 * 1000) },
+        { agentId: "writer", agentEmoji: "✍️", type: "message", message: "Generated report", timestamp: new Date(Date.now() - 8 * 60 * 60 * 1000) }
       ]);
       console.log("✅ Sample activity seeded");
     }
