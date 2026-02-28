@@ -15,13 +15,70 @@ const server = createServer(app);
 const wss = new WebSocketServer({ server, path: '/ws/feed' });
 
 app.use(cors());
+
+// ── PRICING TABLE (per 1M tokens, blended in/out average) ──
+const MODEL_PRICING = {
+  // Anthropic
+  'anthropic/claude-opus-4-6': 30.0,
+  'anthropic/claude-sonnet-4-6': 9.0,
+  'anthropic/claude-haiku-4-5': 2.0,
+  // OpenAI
+  'openai/gpt-5.2': 15.0,
+  'openai-codex/gpt-5.3-codex': 0.0, // Free tier (OAuth)
+  // MiniMax
+  'minimax-portal/MiniMax-M2.5-highspeed': 1.1,
+  'minimax-portal/MiniMax-M2.5': 1.1,
+  'minimax-portal/MiniMax-M2.1': 0.8,
+  // Google
+  'google-gemini-cli/gemini-2.5-pro': 0.0, // Free tier (OAuth)
+  // Kimi
+  'kimi-coding/k2p5': 0.0, // Free tier
+  // ZAI
+  'zai/glm-5': 2.0,
+  // OpenRouter
+  'openrouter/x-ai/grok-4.1-fast': 1.5,
+};
+
+function estimateCost(model, tokens) {
+  const rate = MODEL_PRICING[model] !== undefined ? MODEL_PRICING[model] : 5.0;
+  return (tokens / 1000000) * rate;
+}
+
 app.use(express.json());
 
 // ── CONFIG ──────────────────────────────────────────────────
+// Load gateway token from env files
+try {
+  const envFile = require('fs').readFileSync(process.env.HOME + '/.openclaw/.env', 'utf-8');
+  envFile.split('\n').forEach(line => {
+    const [key, ...val] = line.split('=');
+    if (key && val.length && !process.env[key.trim()]) {
+      process.env[key.trim()] = val.join('=').trim();
+    }
+  });
+} catch {}
+
 const HOME = process.env.HOME || '/home/clawd';
 const OC = path.join(HOME, '.openclaw');
 const MDX = path.join(OC, 'mdx');
 const PORT = process.env.PORT || 3001;
+
+// Ensure conversation store
+const INBOX_DIR = path.join(MDX, 'inbox');
+if (!fs.existsSync(INBOX_DIR)) fs.mkdirSync(INBOX_DIR, { recursive: true });
+
+function appendInboxMessage(agentId, role, text) {
+  const file = path.join(INBOX_DIR, agentId + '.jsonl');
+  const entry = JSON.stringify({ role, content: text, timestamp: new Date().toISOString() });
+  fs.appendFileSync(file, entry + '\n');
+}
+
+function readInboxMessages(agentId, limit = 50) {
+  const file = path.join(INBOX_DIR, agentId + '.jsonl');
+  if (!fs.existsSync(file)) return [];
+  const lines = fs.readFileSync(file, 'utf-8').split('\n').filter(Boolean).slice(-limit);
+  return lines.map(l => { try { return JSON.parse(l); } catch { return null; } }).filter(Boolean);
+}
 
 // Ensure MDX data dirs
 [MDX].forEach(d => { if (!fs.existsSync(d)) fs.mkdirSync(d, { recursive: true }); });
@@ -146,8 +203,8 @@ app.get('/api/overview', (req, res) => {
       activeAgents,
       runningTasks,
       pendingApproval,
-      costToday: 0, // TODO: real cost calc
       tokensToday: totalTokens,
+      costToday: agents.reduce((sum, a) => sum + (a.costToday || 0), 0),
     },
     agents: agents.slice(0, 6),
     recentTasks: tasks.slice(0, 5),
@@ -193,6 +250,7 @@ function buildAgents() {
       status: deriveStatus(latest?.updatedAt),
       currentTask,
       tokensToday,
+      costToday: estimateCost(agent.model, tokensToday),
       sessionCount: Object.keys(sessions).length,
       lastActive: latest?.updatedAt || null,
       color: COLORS[agent.id] || COLORS.default,
@@ -218,25 +276,120 @@ app.get('/api/agents/:id/session', (req, res) => {
   if (!latest?.sessionFile || !fs.existsSync(latest.sessionFile)) {
     return res.json({ lines: [], sessionKey: null });
   }
-  const lines = readLastLines(latest.sessionFile, 50);
+  const rawLines = readLastLines(latest.sessionFile, 50);
+  // Normalize OpenClaw session format to simple {role, content, timestamp} objects
+  const lines = rawLines.filter(l => l && l.type === 'message' && l.message).map(l => {
+    const msg = l.message;
+    const role = msg.role || 'unknown';
+    // content can be string or array of {type, text} objects
+    let text = '';
+    if (typeof msg.content === 'string') text = msg.content;
+    else if (Array.isArray(msg.content)) {
+      text = msg.content
+        .filter(c => c.type === 'text')
+        .map(c => c.text || '')
+        .join('\n');
+    }
+    return { role, content: text, timestamp: l.timestamp };
+  });
   res.json({ lines, sessionKey: latest.key, sessionId: latest.sessionId });
+});
+
+app.get('/api/agents/:id/inbox', (req, res) => {
+  const agentId = req.params.id;
+  const messages = readInboxMessages(agentId, 50);
+  res.json({ messages });
 });
 
 app.post('/api/agents/:id/message', async (req, res) => {
   const { message } = req.body;
   if (!message) return res.status(400).json({ error: 'message required' });
   const agentId = req.params.id;
-  const cfg = getConfig();
-  const token = cfg.gateway?.auth?.token || '';
+  const gwToken = process.env.OPENCLAW_GATEWAY_TOKEN || process.env.OPENCLAW_TOKEN || '';
+  if (!gwToken) return res.status(500).json({ error: 'No gateway token configured' });
+
+  const { default: WebSocket } = await import('ws');
+  const { randomUUID } = await import('crypto');
+  
+  // Save user message
+  appendInboxMessage(agentId, 'user', message);
+  
+  const sessionKey = `agent:${agentId}:telegram:direct:1172819123`;
+  
   try {
-    const result = clawExec(
-      `curl -s -X POST http://127.0.0.1:18789/v1/chat/completions ` +
-      `-H "Authorization: Bearer ${token}" ` +
-      `-H "Content-Type: application/json" ` +
-      `-H "x-openclaw-agent-id: ${agentId}" ` +
-      `-d '${JSON.stringify({ model: `openclaw:${agentId}`, messages: [{ role: 'user', content: message }], stream: false })}'`
-    );
-    res.json({ ok: true, result: parseClawJson(result) });
+    const ws = new WebSocket('ws://127.0.0.1:18789/ws');
+    let responded = false;
+    let responseText = '';
+    let chatSent = false;
+    
+    // Respond to HTTP immediately after sending chat, but keep WS open to capture response
+    const finish = (result) => {
+      if (responded) return;
+      responded = true;
+      res.json(result);
+    };
+    
+    setTimeout(() => {
+      // If we got some response text, save it
+      if (responseText) appendInboxMessage(agentId, 'assistant', responseText);
+      finish({ ok: chatSent, status: chatSent ? 'sent' : 'timeout' });
+      try { ws.close(); } catch {}
+    }, 60000);
+    
+    ws.on('error', (err) => {
+      finish({ ok: false, error: err.message });
+    });
+    
+    ws.on('message', (data) => {
+      let msg;
+      try { msg = JSON.parse(data.toString()); } catch { return; }
+      
+      // Step 1: Auth challenge → send connect
+      if (msg.type === 'event' && msg.event === 'connect.challenge') {
+        ws.send(JSON.stringify({
+          type: 'req', id: randomUUID(), method: 'connect',
+          params: {
+            minProtocol: 3, maxProtocol: 3,
+            client: { id: 'gateway-client', displayName: 'MDX Bridge', version: '1.0.0', platform: 'linux', mode: 'backend' },
+            auth: { token: gwToken }, role: 'operator', scopes: ['operator.admin']
+          }
+        }));
+      }
+      
+      // Step 2: Connect OK → send chat.send
+      if (msg.type === 'res' && msg.ok === true && !chatSent) {
+        chatSent = true;
+        ws.send(JSON.stringify({
+          type: 'req', id: randomUUID(), method: 'chat.send',
+          params: { sessionKey, message, idempotencyKey: randomUUID() }
+        }));
+        // Return immediately 
+        finish({ ok: true, status: 'sent', sessionKey });
+      }
+      
+      // Connect failed
+      if (msg.type === 'res' && msg.ok === false && !chatSent) {
+        finish({ ok: false, error: msg.error?.message || 'Connect failed' });
+      }
+      
+      // Capture streaming response from chat events
+      if (msg.type === 'event' && msg.event === 'chat') {
+        const payload = msg.payload || {};
+        // Events have state: "delta" (partial) or "final" (complete)
+        if (payload.state === 'final' && payload.message) {
+          const content = payload.message.content || [];
+          const text = content
+            .filter(c => c.type === 'text')
+            .map(c => c.text || '')
+            .join('\n')
+            .trim();
+          if (text) {
+            appendInboxMessage(agentId, 'assistant', text);
+          }
+          try { ws.close(); } catch {}
+        }
+      }
+    });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
@@ -442,34 +595,74 @@ app.get('/api/connections', (req, res) => {
 });
 
 // ── ARTIFACTS ───────────────────────────────────────────────
+// Serve artifact files for download
+app.get('/api/artifacts/download', (req, res) => {
+  const filePath = req.query.path;
+  if (!filePath) return res.status(400).json({error: 'path required'});
+  const resolved = path.resolve(filePath);
+  if (!resolved.startsWith(HOME + '/.openclaw/')) {
+    return res.status(403).json({error: 'forbidden'});
+  }
+  if (!fs.existsSync(resolved)) {
+    return res.status(404).json({error: 'not found'});
+  }
+  res.download(resolved);
+});
+
+// Serve artifact file content (for text preview)
+app.get('/api/artifacts/content', (req, res) => {
+  const filePath = req.query.path;
+  if (!filePath) return res.status(400).json({error: 'path required'});
+  const resolved = path.resolve(filePath);
+  if (!resolved.startsWith(HOME + '/.openclaw/')) {
+    return res.status(403).json({error: 'forbidden'});
+  }
+  if (!fs.existsSync(resolved)) {
+    return res.status(404).json({error: 'not found'});
+  }
+  try {
+    const content = fs.readFileSync(resolved, 'utf-8');
+    res.json({content: content.substring(0, 50000)});
+  } catch(e) {
+    res.status(500).json({error: e.message});
+  }
+});
+
 app.get('/api/artifacts', (req, res) => {
   const agents = getAgentList();
   const artifacts = [];
   const exts = {
-    code: ['.ts','.tsx','.js','.jsx','.py','.sh','.sql','.rs','.go'],
+    code: ['.ts','.tsx','.js','.jsx','.py','.sh','.sql','.rs','.go','.css','.html'],
     docs: ['.md','.txt','.pdf','.docx','.rst'],
-    media: ['.png','.jpg','.gif','.mp4','.mp3','.svg','.webp'],
-    config: ['.json','.yaml','.toml','.env','.jsonl'],
+    media: ['.png','.jpg','.jpeg','.gif','.mp4','.mp3','.svg','.webp'],
+    config: ['.json','.yaml','.yml','.toml','.env','.jsonl'],
   };
-
-  for (const agent of agents) {
-    if (!agent.workspace || !fs.existsSync(agent.workspace)) continue;
+  function getType(ext) {
+    for (const [cat, extensions] of Object.entries(exts)) {
+      if (extensions.includes(ext)) return cat;
+    }
+    return 'other';
+  }
+  function scanDir(dirPath, category, label, emoji, maxFiles = 100, maxDepth = 1) {
+    if (!fs.existsSync(dirPath)) return;
     try {
-      const files = fs.readdirSync(agent.workspace).slice(0, 50);
+      const files = fs.readdirSync(dirPath).slice(0, maxFiles);
       for (const file of files) {
-        const fullPath = path.join(agent.workspace, file);
+        if (file.startsWith('.')) continue;
+        const fullPath = path.join(dirPath, file);
         try {
           const stat = fs.statSync(fullPath);
+          if (stat.isDirectory()) {
+            if (maxDepth > 0) scanDir(fullPath, category, label, emoji, 30, maxDepth - 1);
+            continue;
+          }
           if (!stat.isFile()) continue;
           const ext = path.extname(file).toLowerCase();
-          let type = 'other';
-          for (const [cat, extensions] of Object.entries(exts)) {
-            if (extensions.includes(ext)) { type = cat; break; }
-          }
           artifacts.push({
-            id: `${agent.id}-${file}`,
-            agentId: agent.id, agentName: agent.name, agentEmoji: agent.emoji,
-            name: file, path: file, ext, type,
+            id: category + '-' + file + '-' + stat.mtimeMs,
+            category, categoryLabel: label, categoryEmoji: emoji,
+            agentId: null, agentName: label, agentEmoji: emoji,
+            name: file, path: fullPath, ext, type: getType(ext),
             sizeBytes: stat.size,
             modifiedAt: stat.mtime.toISOString(),
           });
@@ -477,6 +670,91 @@ app.get('/api/artifacts', (req, res) => {
       }
     } catch {}
   }
+
+  // 1. Agent workspaces
+  for (const agent of agents) {
+    if (!agent.workspace || !fs.existsSync(agent.workspace)) continue;
+    try {
+      const files = fs.readdirSync(agent.workspace).slice(0, 50);
+      for (const file of files) {
+        if (file.startsWith('.')) continue;
+        const fullPath = path.join(agent.workspace, file);
+        try {
+          const stat = fs.statSync(fullPath);
+          if (!stat.isFile()) continue;
+          const ext = path.extname(file).toLowerCase();
+          artifacts.push({
+            id: agent.id + '-' + file,
+            category: 'agents', categoryLabel: 'Agent Files', categoryEmoji: '🤖',
+            agentId: agent.id, agentName: agent.name, agentEmoji: agent.emoji,
+            name: file, path: fullPath, ext, type: getType(ext),
+            sizeBytes: stat.size,
+            modifiedAt: stat.mtime.toISOString(),
+          });
+        } catch {}
+      }
+      // Also scan memory/ subdirectory
+      const memDir = path.join(agent.workspace, 'memory');
+      if (fs.existsSync(memDir)) {
+        scanDir(memDir, 'memory', agent.name + ' Memory', agent.emoji || '🧠', 30, 0);
+      }
+    } catch {}
+  }
+
+  // 2. Media (outbound files, not inbound)
+  scanDir(HOME + '/.openclaw/media', 'media', 'Media', '🖼️', 50, 0);
+
+  // 3. Config
+  const configFiles = [
+    { name: 'openclaw.json', path: HOME + '/.openclaw/openclaw.json' },
+    { name: '.env', path: HOME + '/.openclaw/.env' },
+  ];
+  for (const cf of configFiles) {
+    if (fs.existsSync(cf.path)) {
+      try {
+        const stat = fs.statSync(cf.path);
+        artifacts.push({
+          id: 'config-' + cf.name, category: 'config', categoryLabel: 'Config', categoryEmoji: '⚙️',
+          agentId: null, agentName: 'System', agentEmoji: '⚙️',
+          name: cf.name, path: cf.path, ext: path.extname(cf.name), type: 'config',
+          sizeBytes: stat.size, modifiedAt: stat.mtime.toISOString(),
+        });
+      } catch {}
+    }
+  }
+
+  // 4. Skills (just skill.md from each)
+  const skillsDir = HOME + '/.openclaw/skills';
+  if (fs.existsSync(skillsDir)) {
+    try {
+      const skills = fs.readdirSync(skillsDir).slice(0, 40);
+      for (const skill of skills) {
+        const skillPath = path.join(skillsDir, skill);
+        const stat = fs.statSync(skillPath);
+        if (!stat.isDirectory()) continue;
+        const skillMd = path.join(skillPath, 'SKILL.md');
+        if (fs.existsSync(skillMd)) {
+          const mstat = fs.statSync(skillMd);
+          artifacts.push({
+            id: 'skill-' + skill, category: 'skills', categoryLabel: 'Skills', categoryEmoji: '🧩',
+            agentId: null, agentName: skill, agentEmoji: '🧩',
+            name: skill + '/SKILL.md', path: skillMd, ext: '.md', type: 'docs',
+            sizeBytes: mstat.size, modifiedAt: mstat.mtime.toISOString(),
+          });
+        }
+      }
+    } catch {}
+  }
+
+  // 5. Backups
+  scanDir(HOME + '/.openclaw/backups', 'backups', 'Backups', '💾', 20, 0);
+
+  // 6. Logs
+  scanDir(HOME + '/.openclaw/logs', 'logs', 'Logs', '📋', 20, 0);
+
+  // 7. Cron
+  scanDir(HOME + '/.openclaw/cron', 'cron', 'Cron', '⏰', 10, 0);
+
   artifacts.sort((a, b) => b.modifiedAt.localeCompare(a.modifiedAt));
   res.json(artifacts);
 });
